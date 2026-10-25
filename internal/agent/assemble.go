@@ -81,10 +81,21 @@ func (a *Agent) searchJourneys(ctx context.Context, p *plan.TripPlan, component,
 	}
 	// The first option is what the trip is assembled from until the user
 	// chooses: an outbound that arrives on the check-in day before one that
-	// loses the first night, then the cheapest, then the fastest.
+	// loses the first night, a return that leaves after check-out before a
+	// night departure, then the cheapest, then the fastest.
+	checkOut := "12:00"
+	if stay := p.Components.Stay.Effective(); stay != nil && stay.Stay != nil && stay.Stay.CheckOutTime != "" {
+		checkOut = stay.Stay.CheckOutTime
+	}
 	lateness := func(o plan.Option) int {
 		segs := o.Journey.Segments
-		if component == plan.Outbound && len(segs) > 0 && !strings.HasPrefix(segs[len(segs)-1].ArriveAt, date) {
+		switch {
+		case len(segs) == 0:
+			return 1
+		case component == plan.Outbound && !strings.HasPrefix(segs[len(segs)-1].ArriveAt, date):
+			return 1
+		// RFC 3339 local time: characters 11..16 are the wall clock HH:MM.
+		case component == plan.Return && len(segs[0].DepartAt) >= 16 && segs[0].DepartAt[11:16] < checkOut:
 			return 1
 		}
 		return 0

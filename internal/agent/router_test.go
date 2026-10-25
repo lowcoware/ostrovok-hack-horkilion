@@ -85,3 +85,29 @@ func TestPassportPhraseDoesNotPickKazan(t *testing.T) {
 		t.Errorf("«казахстана» must not choose Казань, got %q", got)
 	}
 }
+
+func TestShiftDates(t *testing.T) {
+	p := plan.New("s")
+	p.Constraints.Dates = plan.Dates{Depart: "2026-11-20", Nights: 3, Return: "2026-11-23"}
+	for text, want := range map[string]string{
+		"а если на два дня позже?": "2026-11-22",
+		"на день раньше":           "2026-11-19",
+		"на 3 дня позже":           "2026-11-23",
+		"давай на неделю попозже":  "2026-11-27",
+	} {
+		got := routeRules(p, text, today).shift(p).patch()
+		if got.Dates == nil || s(got.Dates.Depart) != want || got.Dates.Nights != nil {
+			t.Errorf("%q: want depart %s and nights untouched, got %+v", text, want, got.Dates)
+		}
+	}
+}
+
+func TestReturnLeavesAfterCheckout(t *testing.T) {
+	a := inventoryAgent(t)
+	p := plan.New("s")
+	turn(t, a, &p, plan.Patch{Destination: ptr("Сочи"), Dates: &plan.DatesPatch{Depart: ptr("2026-11-01")}})
+	ret := p.Components.Return.Effective().Journey.Segments[0].DepartAt
+	if ret[11:16] < p.Components.Stay.Effective().Stay.CheckOutTime {
+		t.Errorf("the default return must leave after check-out while one does, got %s", ret)
+	}
+}

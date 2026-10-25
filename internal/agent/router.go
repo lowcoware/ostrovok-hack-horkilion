@@ -28,7 +28,8 @@ const routerPrompt = `Ты разбираешь сообщение путеше�
  "moods": массив тегов из sea, warm, mountains, nature, city, kids,
  "transport_modes": массив из air и rail, если человек хочет только самолёт или только поезд,
  "max_travel_hours": максимум часов в пути в одну сторону; «без долгих перелётов» — 5,
- "visa_free_only": false если виза не проблема, true если нужно только без визы}
+ "visa_free_only": false если виза не проблема, true если нужно только без визы,
+ "shift_days": на сколько дней сдвинуть текущие даты: «на два дня позже» — 2, «на день раньше» — -1}
 Если пользователь выбирает одно из предложенных направлений (по названию или по номеру), верни его название в destination.
 Сегодня %s. Текущие условия: %s. Предложенные направления: %s`
 
@@ -57,6 +58,8 @@ type routed struct {
 	TransportModes []string `json:"transport_modes"`
 	MaxTravelHours *float64 `json:"max_travel_hours"`
 	VisaFreeOnly   *bool    `json:"visa_free_only"`
+	// ShiftDays moves the current departure: +2 for «на два дня позже».
+	ShiftDays *int32 `json:"shift_days"`
 	// LongTripsUnwanted means «без долгих перелётов» without a number.
 	LongTripsUnwanted bool `json:"-"`
 }
@@ -76,14 +79,26 @@ func (r Router) Route(ctx context.Context, p plan.TripPlan, text string, today t
 	if r.llm != nil {
 		out, err := r.routeLLM(ctx, p, text, today)
 		if err == nil {
-			return out.patch()
+			return out.shift(p).patch()
 		}
 		slog.Warn("llm router failed, falling back to rules", "err", err)
 	}
 	_, rules := startSpan(ctx, "router-rules", "span", text)
 	out := routeRules(p, text, today)
 	endSpan(rules, out, nil)
-	return out.patch()
+	return out.shift(p).patch()
+}
+
+// shift turns «на два дня позже» into a new departure date relative to the
+// current one; without a known departure there is nothing to shift.
+func (r routed) shift(p plan.TripPlan) routed {
+	if r.ShiftDays == nil || *r.ShiftDays == 0 || r.Depart != nil {
+		return r
+	}
+	if dep, err := time.Parse(time.DateOnly, p.Constraints.Dates.Depart); err == nil {
+		r.Depart = ptr(dep.AddDate(0, 0, int(*r.ShiftDays)).Format(time.DateOnly))
+	}
+	return r
 }
 
 func (r Router) routeLLM(ctx context.Context, p plan.TripPlan, text string, today time.Time) (routed, error) {
@@ -190,6 +205,8 @@ var (
 	reStrict     = regexp.MustCompile(`строго|не больше|не дороже|максимум`)
 	reVisaOK     = regexp.MustCompile(`можно с виз|виза не проблема|визу сделаем|есть виза|есть шенген|с визой можно`)
 	reVisaFree   = regexp.MustCompile(`без виз|безвиз`)
+	reShift      = regexp.MustCompile(`на\s+(\d{1,2}|день|сутки|два|две|три|четыре|пять|шесть|неделю)\s*(?:дн[а-яё]*|сут[а-яё]*)?\s*(позже|раньше|попозже|пораньше)`)
+	shiftWords   = map[string]int32{"день": 1, "сутки": 1, "два": 2, "две": 2, "три": 3, "четыре": 4, "пять": 5, "шесть": 6, "неделю": 7}
 	moodRules    = []struct {
 		tag string
 		re  *regexp.Regexp
@@ -281,7 +298,17 @@ func routeRules(cur plan.TripPlan, text string, today time.Time) routed {
 	case reVisaFree.MatchString(lower):
 		p.VisaFreeOnly = ptr(true)
 	}
-	if m := reNights.FindStringSubmatch(lower); m != nil {
+	if m := reShift.FindStringSubmatch(lower); m != nil {
+		n, ok := shiftWords[m[1]]
+		if !ok {
+			n = atoi32(m[1])
+		}
+		if strings.HasSuffix(m[2], "раньше") {
+			n = -n
+		}
+		p.ShiftDays = &n
+	}
+	if m := reNights.FindStringSubmatch(lower); m != nil && p.ShiftDays == nil {
 		p.Nights = ptr(atoi32(m[1]))
 	}
 	if m := reAdults.FindStringSubmatch(lower); m != nil {
