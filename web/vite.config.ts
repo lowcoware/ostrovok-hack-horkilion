@@ -1,10 +1,12 @@
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { msw } from "msw/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  // msw() only serves the worker script; mocks turn on with VITE_MOCKS=1 (src/main.tsx).
+  plugins: [react(), tailwindcss(), msw()],
   resolve: {
     alias: { "@": path.resolve(import.meta.dirname, "./src") },
   },

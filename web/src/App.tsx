@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createSession, openEvents, sendMessage, type AgentEvent, type TripPlan } from "@/api";
+import { ApiError, createSession, getSession, openEvents, sendMessage, type AgentEvent, type TripPlan } from "@/api";
 import { AnimatedShinyText } from "@/components/ui/animated-shiny-text";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const streaming = useRef(false);
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -47,10 +48,21 @@ export default function App() {
 
     (async () => {
       try {
-        const id = loadSession() ?? (await createSession());
+        let id = loadSession();
+        let details = id ? await getSession(id).catch((err) => {
+          // A session of another browser or from before the v1 API: start a new one.
+          if (err instanceof ApiError && err.status === 404) return null;
+          throw err;
+        }) : null;
+        if (!id || !details) {
+          id = await createSession();
+          details = await getSession(id);
+        }
         if (cancelled) return;
         saveSession(id);
         setSessionId(id);
+        setPlan(details.plan);
+        setMessages(details.messages.map((m) => ({ role: m.role, text: m.text })));
         source = openEvents(id);
         source.onopen = () => setConnected(true);
         source.onerror = () => setConnected(false);
@@ -73,21 +85,28 @@ export default function App() {
   function handleEvent(ev: AgentEvent) {
     switch (ev.type) {
       case "status":
-        setStatus(ev.text ?? null);
+        setStatus(ev.data.text);
         break;
-      case "token":
+      case "token": {
+        const text = ev.data.text;
+        // Decided outside the updater: StrictMode runs updaters twice.
+        const append = streaming.current;
+        streaming.current = true;
         setStatus(null);
         setMessages((prev) => {
           const last = prev[prev.length - 1];
-          if (streaming.current && last?.role === "assistant") {
-            return [...prev.slice(0, -1), { ...last, text: last.text + ev.text }];
+          if (append && last?.role === "assistant") {
+            return [...prev.slice(0, -1), { ...last, text: last.text + text }];
           }
-          streaming.current = true;
-          return [...prev, { role: "assistant", text: ev.text }];
+          return [...prev, { role: "assistant", text }];
         });
         break;
+      }
       case "plan":
-        setPlan(ev.plan);
+        setPlan(ev.data);
+        break;
+      case "clarify":
+        setQuickReplies(ev.data.quick_replies);
         break;
       case "done":
         streaming.current = false;
@@ -98,7 +117,7 @@ export default function App() {
         streaming.current = false;
         setBusy(false);
         setStatus(null);
-        setError(ev.message);
+        setError(ev.data.message);
         break;
     }
   }
@@ -106,6 +125,7 @@ export default function App() {
   async function send(text: string) {
     if (!sessionId || !text.trim() || busy) return;
     setError(null);
+    setQuickReplies([]);
     setBusy(true);
     streaming.current = false;
     setMessages((prev) => [...prev, { role: "user", text }]);
@@ -175,6 +195,15 @@ export default function App() {
                 </div>
               </BlurFade>
             ))}
+            {quickReplies.length > 0 && !busy && (
+              <div className="flex flex-wrap gap-2">
+                {quickReplies.map((r) => (
+                  <Button key={r} variant="outline" size="sm" onClick={() => send(r)}>
+                    {r}
+                  </Button>
+                ))}
+              </div>
+            )}
             {status && <p className="text-sm text-muted-foreground">{status}...</p>}
             {error && <p className="text-sm text-destructive">{error}</p>}
             <div ref={bottom} />
@@ -199,7 +228,7 @@ export default function App() {
           </form>
         </section>
 
-        <PlanPanel plan={plan} sessionId={sessionId} />
+        <PlanPanel plan={plan} sessionId={sessionId} busy={busy} onTurnStarted={() => setBusy(true)} />
       </main>
     </div>
   );
