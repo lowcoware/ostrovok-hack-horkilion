@@ -83,10 +83,12 @@ services:
       DATABASE_URL: *db-url
       NATS_URL: nats://nats:4222
       BOOKING_ADDR: booking:9000
+      INVENTORY_ADDR: inventory:9000
     depends_on:
       migrate: { condition: service_completed_successfully }
       nats: { condition: service_started }
       booking: { condition: service_healthy }
+      inventory: { condition: service_healthy }
 
   notifier:
     <<: *service
