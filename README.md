@@ -6,19 +6,21 @@
 
 | Каталог | Что это |
 |---|---|
-| `cmd/gateway` | HTTP API и SSE для фронта. Кладёт сообщения в очередь `AGENT_TURNS`, транслирует события агента, оформляет заказ через gRPC |
-| `cmd/agent` | Воркер хода агента: роутер, патч `TripPlan` с инвалидацией, гейты этапов, вызовы `inventory` по gRPC, стриминг ответа |
-| `cmd/inventory` | gRPC: синтетические отели (детерминированные), цены, погода из Open-Meteo |
-| `cmd/booking` | gRPC: идемпотентные заказы, имитация оплаты, transactional outbox → JetStream `BOOKINGS` |
+| `api/openapi.yaml` | Внешнее API агента (`/api/v1`): сессии, сообщения, правка плана, SSE-события, заказы, `TripPlan` v2. Источник правды для фронта и любых других клиентов |
+| `cmd/gateway` | HTTP API и SSE по `api/openapi.yaml`: cookie владельца, проверка владения (чужое — `404`), очередь `AGENT_TURNS`, события агента, заказ через gRPC |
+| `cmd/agent` | Воркер хода агента: роутер или патч из интерфейса, `TripPlan` v2 с инвалидацией, гейты этапов, вызовы поставщиков по gRPC, стриминг ответа |
+| `cmd/inventory` | gRPC-поставщики `catalog`, `lodging`, `transport`, `transfer`. Реализация каждого выбирается переменной `*_PROVIDER`: сейчас погода из Open-Meteo, синтетические отели, транспорт и трансферы — заглушки до фазы 1 |
+| `cmd/booking` | gRPC: идемпотентные заказы из нескольких позиций, перепроверка цены каждой позиции у её поставщика, имитация оплаты, transactional outbox → JetStream `BOOKINGS` |
 | `cmd/notifier` | Консьюмер `BOOKINGS`: уведомления (пока в лог) и событие воронки в ClickHouse |
 | `cmd/migrate` | Миграции PostgreSQL (goose), запускается один раз перед сервисами |
-| `proto/`, `gen/` | gRPC-контракты и сгенерированный код (`scripts/gen-proto.sh`) |
+| `proto/`, `gen/` | gRPC-контракты поставщиков и booking (`common`, `catalog`, `lodging`, `transport`, `transfer`, `booking`) и сгенерированный код (`scripts/gen-proto.sh`) |
+| `config/rules.yaml` | Бизнес-правила агента: стыковки, уточнения, наценка. Неверный файл — агент не стартует |
 | `web/` | React + Vite + Tailwind + shadcn/ui + Magic UI, отдаётся через Caddy |
 | `deploy/` | docker-compose всего стека, Caddy, Prometheus, Grafana, init-скрипты баз |
 
 Синхронные вызовы между сервисами идут по gRPC, асинхронные (ход агента, события бронирования) — через NATS JetStream. Источник правды — PostgreSQL. Трейсы LLM — Langfuse, метрики — Prometheus и Grafana, воронка — база `analytics` в ClickHouse от Langfuse.
 
-Без `OPENROUTER_API_KEY` агент работает на правилах и шаблонных ответах, весь путь от сообщения до покупки при этом проходится. С ключом роутер и ответы идут через модели из [docs/models.md](docs/models.md).
+LLM — любой OpenAI-совместимый эндпоинт: `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_ROUTER_MODEL`, `LLM_EXTRA_BODY` (`OPENROUTER_API_KEY` пока читается как запасное имя ключа). Без ключа агент работает на правилах и шаблонных ответах, весь путь от сообщения до покупки при этом проходится. С ключом роутер и ответы идут через модели из [docs/models.md](docs/models.md).
 
 ## Локальный запуск
 
@@ -35,9 +37,26 @@ docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml u
 
 Разработка без контейнеров: Go 1.27, Node 24. `go test ./...`, `cd web && npm run dev` (проксирует `/api` на `localhost:8080`).
 
+### Контракты
+
+Контракт меняется только PR, который правит его и код по обе стороны. CI падает, если сгенерированный код отстал:
+
+- `api/openapi.yaml` → `cd web && npm run gen:api` обновляет `web/src/api/schema.ts`; руками типы ответов API не пишем;
+- `proto/` → `scripts/gen-proto.sh` обновляет `gen/` (protoc 36.2, `protoc-gen-go` v1.36.12, `protoc-gen-go-grpc` v1.6.2);
+- линт OpenAPI: `npx @redocly/cli lint api/openapi.yaml`.
+
+Тесты сверяют с `api/openapi.yaml` ответы gateway, `TripPlan`, патч и события SSE (Go, `kin-openapi`) и фикстуру моков (`cd web && npm test`).
+
 ### Только фронтенд
 
-Бэкенд локально поднимать не нужно, dev-сервер проксирует `/api` на задеплоенный:
+Без бэкенда вообще, на моках MSW: план полной поездки (транспорт туда и обратно, отель, два трансфера, проверки стыковок) из `web/src/mocks/fixture.ts`, каждое сообщение проигрывает события `status`, `token`, `plan`, `done`:
+
+```bash
+cd web && npm ci
+VITE_MOCKS=1 npm run dev
+```
+
+С настоящим бэкендом: dev-сервер проксирует `/api` на задеплоенный:
 
 ```bash
 cd web && npm ci
@@ -47,6 +66,10 @@ VITE_API_TARGET=https://<домен приложения> npm run dev
 ## Как вносить изменения
 
 Одна ветка `main`, она же то, что работает на сервере. Каждая задача — короткая ветка и PR в `main`, отдельных веток под фронт и бэк нет. CI смотрит, что поменялось: PR только в `web/` проверяет только сборку фронта, PR в Go-коде — только Go. После мержа деплой пересобирает лишь изменённую часть: правка фронта собирает и перезапускает один контейнер `web`, бэкенд не трогается.
+
+### Журнал изменений
+
+Каждое изменение записывается в [CHANGELOG.md](CHANGELOG.md) строго по [Keep a Changelog 1.1.0](https://keepachangelog.com/ru/1.1.0/): раздел `[Unreleased]`, разделы «Добавлено», «Изменено», «Устарело», «Удалено», «Исправлено», «Безопасность». В каждом пункте — суть, технические детали после «Технически:» и короткий хеш коммита, например (`29776b5`). Коммит не может содержать свой хеш, поэтому порядок такой: коммит с кодом, затем запись с его хешем отдельным коммитом. Проверка: `python3 scripts/check-changelog.py`, в CI она идёт на каждом PR. PR с записями в журнале мержится через merge commit: squash и rebase меняют хеши, и записи станут ложными.
 
 ## Деплой через GitHub Actions
 

@@ -13,14 +13,6 @@ import (
 	"horkilion/internal/platform"
 )
 
-type bookingEvent struct {
-	ID            string `json:"id"`
-	SessionID     string `json:"session_id"`
-	HotelName     string `json:"hotel_name"`
-	CheckIn       string `json:"check_in"`
-	TotalPriceRub int64  `json:"total_price_rub"`
-}
-
 func main() {
 	platform.HandleHealthcheck()
 	platform.NewLogger("notifier")
@@ -61,7 +53,7 @@ func run() error {
 
 	platform.StartOps(ctx, platform.NATSReady(nc))
 	cc, err := cons.Consume(func(msg jetstream.Msg) {
-		var ev bookingEvent
+		var ev platform.BookingCreated
 		if err := json.Unmarshal(msg.Data(), &ev); err != nil {
 			slog.Error("malformed booking event, dropping", "err", err)
 			_ = msg.Term()
@@ -69,9 +61,10 @@ func run() error {
 		}
 		// impulse: notifications are logged only, show them on the site when post-purchase lands.
 		slog.Info("notification: booking confirmed",
-			"order_id", ev.ID, "session_id", ev.SessionID, "hotel", ev.HotelName,
-			"check_in", ev.CheckIn, "total_rub", ev.TotalPriceRub)
-		an.Track("checkout_completed", ev.SessionID, "checkout", map[string]any{"order_id": ev.ID, "total_rub": ev.TotalPriceRub})
+			"order_id", ev.ID, "session_id", ev.SessionID, "items", len(ev.Items), "total_rub", ev.TotalRub)
+		an.Track("checkout_completed", ev.SessionID, "checkout", map[string]any{
+			"order_id": ev.ID, "total_rub": ev.TotalRub, "items": len(ev.Items),
+		})
 		_ = msg.Ack()
 	})
 	if err != nil {

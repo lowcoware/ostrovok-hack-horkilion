@@ -1,0 +1,8 @@
+# Lint config for api/openapi.yaml (CI: redocly lint api/openapi.yaml).
+extends:
+  - recommended
+rules:
+  # Read-only listings (/me, /sessions, /orders, /sources) have no client error to report.
+  operation-4xx-response: off
+  # The repository has no license yet; turn this back on once the team picks one.
+  info-license: off

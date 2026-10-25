@@ -9,6 +9,8 @@ package bookingv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	v11 "horkilion/gen/common/v1"
+	v1 "horkilion/gen/lodging/v1"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -21,26 +23,160 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type CreateOrderRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
-	SessionId      string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	HotelId        string                 `protobuf:"bytes,3,opt,name=hotel_id,json=hotelId,proto3" json:"hotel_id,omitempty"`
-	// Check-in date in YYYY-MM-DD.
-	CheckIn   string `protobuf:"bytes,4,opt,name=check_in,json=checkIn,proto3" json:"check_in,omitempty"`
-	Nights    int32  `protobuf:"varint,5,opt,name=nights,proto3" json:"nights,omitempty"`
-	Adults    int32  `protobuf:"varint,6,opt,name=adults,proto3" json:"adults,omitempty"`
-	Children  int32  `protobuf:"varint,7,opt,name=children,proto3" json:"children,omitempty"`
-	GuestName string `protobuf:"bytes,8,opt,name=guest_name,json=guestName,proto3" json:"guest_name,omitempty"`
-	// Pets change the price, so the order must be priced with the same flag as the search.
-	WithPets      bool `protobuf:"varint,9,opt,name=with_pets,json=withPets,proto3" json:"with_pets,omitempty"`
+type ItemKind int32
+
+const (
+	ItemKind_ITEM_KIND_UNSPECIFIED ItemKind = 0
+	ItemKind_ITEM_KIND_STAY        ItemKind = 1
+	ItemKind_ITEM_KIND_JOURNEY     ItemKind = 2
+	ItemKind_ITEM_KIND_TRANSFER    ItemKind = 3
+)
+
+// Enum value maps for ItemKind.
+var (
+	ItemKind_name = map[int32]string{
+		0: "ITEM_KIND_UNSPECIFIED",
+		1: "ITEM_KIND_STAY",
+		2: "ITEM_KIND_JOURNEY",
+		3: "ITEM_KIND_TRANSFER",
+	}
+	ItemKind_value = map[string]int32{
+		"ITEM_KIND_UNSPECIFIED": 0,
+		"ITEM_KIND_STAY":        1,
+		"ITEM_KIND_JOURNEY":     2,
+		"ITEM_KIND_TRANSFER":    3,
+	}
+)
+
+func (x ItemKind) Enum() *ItemKind {
+	p := new(ItemKind)
+	*p = x
+	return p
+}
+
+func (x ItemKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ItemKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_booking_v1_booking_proto_enumTypes[0].Descriptor()
+}
+
+func (ItemKind) Type() protoreflect.EnumType {
+	return &file_booking_v1_booking_proto_enumTypes[0]
+}
+
+func (x ItemKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ItemKind.Descriptor instead.
+func (ItemKind) EnumDescriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{0}
+}
+
+type OrderItem struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Kind  ItemKind               `protobuf:"varint,1,opt,name=kind,proto3,enum=booking.v1.ItemKind" json:"kind,omitempty"`
+	// Offer id from the supplier of this kind.
+	OfferId string `protobuf:"bytes,2,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
+	// The price the user saw. Booking compares it with the supplier's current price.
+	PriceRub int64 `protobuf:"varint,3,opt,name=price_rub,json=priceRub,proto3" json:"price_rub,omitempty"`
+	// Short description for the order page, e.g. hotel name or flight number.
+	Title string `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	// For ITEM_KIND_STAY.
+	Stay *v1.Stay `protobuf:"bytes,5,opt,name=stay,proto3" json:"stay,omitempty"`
+	// For ITEM_KIND_JOURNEY and ITEM_KIND_TRANSFER.
+	Travelers     *v11.Travelers `protobuf:"bytes,6,opt,name=travelers,proto3" json:"travelers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
+func (x *OrderItem) Reset() {
+	*x = OrderItem{}
+	mi := &file_booking_v1_booking_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrderItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrderItem) ProtoMessage() {}
+
+func (x *OrderItem) ProtoReflect() protoreflect.Message {
+	mi := &file_booking_v1_booking_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrderItem.ProtoReflect.Descriptor instead.
+func (*OrderItem) Descriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *OrderItem) GetKind() ItemKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ItemKind_ITEM_KIND_UNSPECIFIED
+}
+
+func (x *OrderItem) GetOfferId() string {
+	if x != nil {
+		return x.OfferId
+	}
+	return ""
+}
+
+func (x *OrderItem) GetPriceRub() int64 {
+	if x != nil {
+		return x.PriceRub
+	}
+	return 0
+}
+
+func (x *OrderItem) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *OrderItem) GetStay() *v1.Stay {
+	if x != nil {
+		return x.Stay
+	}
+	return nil
+}
+
+func (x *OrderItem) GetTravelers() *v11.Travelers {
+	if x != nil {
+		return x.Travelers
+	}
+	return nil
+}
+
+type CreateOrderRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	IdempotencyKey string                 `protobuf:"bytes,1,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	SessionId      string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	GuestName      string                 `protobuf:"bytes,3,opt,name=guest_name,json=guestName,proto3" json:"guest_name,omitempty"`
+	Items          []*OrderItem           `protobuf:"bytes,4,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
 func (x *CreateOrderRequest) Reset() {
 	*x = CreateOrderRequest{}
-	mi := &file_booking_v1_booking_proto_msgTypes[0]
+	mi := &file_booking_v1_booking_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -52,7 +188,7 @@ func (x *CreateOrderRequest) String() string {
 func (*CreateOrderRequest) ProtoMessage() {}
 
 func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_booking_v1_booking_proto_msgTypes[0]
+	mi := &file_booking_v1_booking_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65,7 +201,7 @@ func (x *CreateOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateOrderRequest.ProtoReflect.Descriptor instead.
 func (*CreateOrderRequest) Descriptor() ([]byte, []int) {
-	return file_booking_v1_booking_proto_rawDescGZIP(), []int{0}
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CreateOrderRequest) GetIdempotencyKey() string {
@@ -82,41 +218,6 @@ func (x *CreateOrderRequest) GetSessionId() string {
 	return ""
 }
 
-func (x *CreateOrderRequest) GetHotelId() string {
-	if x != nil {
-		return x.HotelId
-	}
-	return ""
-}
-
-func (x *CreateOrderRequest) GetCheckIn() string {
-	if x != nil {
-		return x.CheckIn
-	}
-	return ""
-}
-
-func (x *CreateOrderRequest) GetNights() int32 {
-	if x != nil {
-		return x.Nights
-	}
-	return 0
-}
-
-func (x *CreateOrderRequest) GetAdults() int32 {
-	if x != nil {
-		return x.Adults
-	}
-	return 0
-}
-
-func (x *CreateOrderRequest) GetChildren() int32 {
-	if x != nil {
-		return x.Children
-	}
-	return 0
-}
-
 func (x *CreateOrderRequest) GetGuestName() string {
 	if x != nil {
 		return x.GuestName
@@ -124,68 +225,24 @@ func (x *CreateOrderRequest) GetGuestName() string {
 	return ""
 }
 
-func (x *CreateOrderRequest) GetWithPets() bool {
+func (x *CreateOrderRequest) GetItems() []*OrderItem {
 	if x != nil {
-		return x.WithPets
+		return x.Items
 	}
-	return false
-}
-
-type GetOrderRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetOrderRequest) Reset() {
-	*x = GetOrderRequest{}
-	mi := &file_booking_v1_booking_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetOrderRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetOrderRequest) ProtoMessage() {}
-
-func (x *GetOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_booking_v1_booking_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetOrderRequest.ProtoReflect.Descriptor instead.
-func (*GetOrderRequest) Descriptor() ([]byte, []int) {
-	return file_booking_v1_booking_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *GetOrderRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
+	return nil
 }
 
 type Order struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	Status        string                 `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	HotelId       string                 `protobuf:"bytes,4,opt,name=hotel_id,json=hotelId,proto3" json:"hotel_id,omitempty"`
-	HotelName     string                 `protobuf:"bytes,5,opt,name=hotel_name,json=hotelName,proto3" json:"hotel_name,omitempty"`
-	CheckIn       string                 `protobuf:"bytes,6,opt,name=check_in,json=checkIn,proto3" json:"check_in,omitempty"`
-	Nights        int32                  `protobuf:"varint,7,opt,name=nights,proto3" json:"nights,omitempty"`
-	TotalPriceRub int64                  `protobuf:"varint,8,opt,name=total_price_rub,json=totalPriceRub,proto3" json:"total_price_rub,omitempty"`
-	CreatedAt     string                 `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Id        string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	SessionId string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// "paid": payment is simulated.
+	Status    string       `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	Items     []*OrderItem `protobuf:"bytes,4,rep,name=items,proto3" json:"items,omitempty"`
+	TotalRub  int64        `protobuf:"varint,5,opt,name=total_rub,json=totalRub,proto3" json:"total_rub,omitempty"`
+	GuestName string       `protobuf:"bytes,6,opt,name=guest_name,json=guestName,proto3" json:"guest_name,omitempty"`
+	// RFC 3339.
+	CreatedAt     string `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -241,39 +298,25 @@ func (x *Order) GetStatus() string {
 	return ""
 }
 
-func (x *Order) GetHotelId() string {
+func (x *Order) GetItems() []*OrderItem {
 	if x != nil {
-		return x.HotelId
+		return x.Items
 	}
-	return ""
+	return nil
 }
 
-func (x *Order) GetHotelName() string {
+func (x *Order) GetTotalRub() int64 {
 	if x != nil {
-		return x.HotelName
-	}
-	return ""
-}
-
-func (x *Order) GetCheckIn() string {
-	if x != nil {
-		return x.CheckIn
-	}
-	return ""
-}
-
-func (x *Order) GetNights() int32 {
-	if x != nil {
-		return x.Nights
+		return x.TotalRub
 	}
 	return 0
 }
 
-func (x *Order) GetTotalPriceRub() int64 {
+func (x *Order) GetGuestName() string {
 	if x != nil {
-		return x.TotalPriceRub
+		return x.GuestName
 	}
-	return 0
+	return ""
 }
 
 func (x *Order) GetCreatedAt() string {
@@ -283,42 +326,306 @@ func (x *Order) GetCreatedAt() string {
 	return ""
 }
 
+type GetOrderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetOrderRequest) Reset() {
+	*x = GetOrderRequest{}
+	mi := &file_booking_v1_booking_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetOrderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetOrderRequest) ProtoMessage() {}
+
+func (x *GetOrderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_booking_v1_booking_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetOrderRequest.ProtoReflect.Descriptor instead.
+func (*GetOrderRequest) Descriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetOrderRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+type ListOrdersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOrdersRequest) Reset() {
+	*x = ListOrdersRequest{}
+	mi := &file_booking_v1_booking_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOrdersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOrdersRequest) ProtoMessage() {}
+
+func (x *ListOrdersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_booking_v1_booking_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOrdersRequest.ProtoReflect.Descriptor instead.
+func (*ListOrdersRequest) Descriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{4}
+}
+
+type ListOrdersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Orders        []*Order               `protobuf:"bytes,1,rep,name=orders,proto3" json:"orders,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOrdersResponse) Reset() {
+	*x = ListOrdersResponse{}
+	mi := &file_booking_v1_booking_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOrdersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOrdersResponse) ProtoMessage() {}
+
+func (x *ListOrdersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_booking_v1_booking_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOrdersResponse.ProtoReflect.Descriptor instead.
+func (*ListOrdersResponse) Descriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListOrdersResponse) GetOrders() []*Order {
+	if x != nil {
+		return x.Orders
+	}
+	return nil
+}
+
+// PriceChanged is the detail of FAILED_PRECONDITION from CreateOrder.
+type PriceChanged struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*ItemPrice           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PriceChanged) Reset() {
+	*x = PriceChanged{}
+	mi := &file_booking_v1_booking_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PriceChanged) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PriceChanged) ProtoMessage() {}
+
+func (x *PriceChanged) ProtoReflect() protoreflect.Message {
+	mi := &file_booking_v1_booking_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PriceChanged.ProtoReflect.Descriptor instead.
+func (*PriceChanged) Descriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *PriceChanged) GetItems() []*ItemPrice {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ItemPrice struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Position of the item in the request.
+	Index          int32    `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
+	Kind           ItemKind `protobuf:"varint,2,opt,name=kind,proto3,enum=booking.v1.ItemKind" json:"kind,omitempty"`
+	OfferId        string   `protobuf:"bytes,3,opt,name=offer_id,json=offerId,proto3" json:"offer_id,omitempty"`
+	SeenPriceRub   int64    `protobuf:"varint,4,opt,name=seen_price_rub,json=seenPriceRub,proto3" json:"seen_price_rub,omitempty"`
+	ActualPriceRub int64    `protobuf:"varint,5,opt,name=actual_price_rub,json=actualPriceRub,proto3" json:"actual_price_rub,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ItemPrice) Reset() {
+	*x = ItemPrice{}
+	mi := &file_booking_v1_booking_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ItemPrice) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ItemPrice) ProtoMessage() {}
+
+func (x *ItemPrice) ProtoReflect() protoreflect.Message {
+	mi := &file_booking_v1_booking_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ItemPrice.ProtoReflect.Descriptor instead.
+func (*ItemPrice) Descriptor() ([]byte, []int) {
+	return file_booking_v1_booking_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ItemPrice) GetIndex() int32 {
+	if x != nil {
+		return x.Index
+	}
+	return 0
+}
+
+func (x *ItemPrice) GetKind() ItemKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ItemKind_ITEM_KIND_UNSPECIFIED
+}
+
+func (x *ItemPrice) GetOfferId() string {
+	if x != nil {
+		return x.OfferId
+	}
+	return ""
+}
+
+func (x *ItemPrice) GetSeenPriceRub() int64 {
+	if x != nil {
+		return x.SeenPriceRub
+	}
+	return 0
+}
+
+func (x *ItemPrice) GetActualPriceRub() int64 {
+	if x != nil {
+		return x.ActualPriceRub
+	}
+	return 0
+}
+
 var File_booking_v1_booking_proto protoreflect.FileDescriptor
 
 const file_booking_v1_booking_proto_rawDesc = "" +
 	"\n" +
 	"\x18booking/v1/booking.proto\x12\n" +
-	"booking.v1\"\x9a\x02\n" +
+	"booking.v1\x1a\x16common/v1/common.proto\x1a\x18lodging/v1/lodging.proto\"\xdd\x01\n" +
+	"\tOrderItem\x12(\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x14.booking.v1.ItemKindR\x04kind\x12\x19\n" +
+	"\boffer_id\x18\x02 \x01(\tR\aofferId\x12\x1b\n" +
+	"\tprice_rub\x18\x03 \x01(\x03R\bpriceRub\x12\x14\n" +
+	"\x05title\x18\x04 \x01(\tR\x05title\x12$\n" +
+	"\x04stay\x18\x05 \x01(\v2\x10.lodging.v1.StayR\x04stay\x122\n" +
+	"\ttravelers\x18\x06 \x01(\v2\x14.common.v1.TravelersR\ttravelers\"\xa8\x01\n" +
 	"\x12CreateOrderRequest\x12'\n" +
 	"\x0fidempotency_key\x18\x01 \x01(\tR\x0eidempotencyKey\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x19\n" +
-	"\bhotel_id\x18\x03 \x01(\tR\ahotelId\x12\x19\n" +
-	"\bcheck_in\x18\x04 \x01(\tR\acheckIn\x12\x16\n" +
-	"\x06nights\x18\x05 \x01(\x05R\x06nights\x12\x16\n" +
-	"\x06adults\x18\x06 \x01(\x05R\x06adults\x12\x1a\n" +
-	"\bchildren\x18\a \x01(\x05R\bchildren\x12\x1d\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x1d\n" +
 	"\n" +
-	"guest_name\x18\b \x01(\tR\tguestName\x12\x1b\n" +
-	"\twith_pets\x18\t \x01(\bR\bwithPets\"!\n" +
-	"\x0fGetOrderRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x82\x02\n" +
+	"guest_name\x18\x03 \x01(\tR\tguestName\x12+\n" +
+	"\x05items\x18\x04 \x03(\v2\x15.booking.v1.OrderItemR\x05items\"\xd6\x01\n" +
 	"\x05Order\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x16\n" +
-	"\x06status\x18\x03 \x01(\tR\x06status\x12\x19\n" +
-	"\bhotel_id\x18\x04 \x01(\tR\ahotelId\x12\x1d\n" +
+	"\x06status\x18\x03 \x01(\tR\x06status\x12+\n" +
+	"\x05items\x18\x04 \x03(\v2\x15.booking.v1.OrderItemR\x05items\x12\x1b\n" +
+	"\ttotal_rub\x18\x05 \x01(\x03R\btotalRub\x12\x1d\n" +
 	"\n" +
-	"hotel_name\x18\x05 \x01(\tR\thotelName\x12\x19\n" +
-	"\bcheck_in\x18\x06 \x01(\tR\acheckIn\x12\x16\n" +
-	"\x06nights\x18\a \x01(\x05R\x06nights\x12&\n" +
-	"\x0ftotal_price_rub\x18\b \x01(\x03R\rtotalPriceRub\x12\x1d\n" +
+	"guest_name\x18\x06 \x01(\tR\tguestName\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\t \x01(\tR\tcreatedAt2\x8e\x01\n" +
+	"created_at\x18\a \x01(\tR\tcreatedAt\"!\n" +
+	"\x0fGetOrderRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"\x13\n" +
+	"\x11ListOrdersRequest\"?\n" +
+	"\x12ListOrdersResponse\x12)\n" +
+	"\x06orders\x18\x01 \x03(\v2\x11.booking.v1.OrderR\x06orders\";\n" +
+	"\fPriceChanged\x12+\n" +
+	"\x05items\x18\x01 \x03(\v2\x15.booking.v1.ItemPriceR\x05items\"\xb6\x01\n" +
+	"\tItemPrice\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12(\n" +
+	"\x04kind\x18\x02 \x01(\x0e2\x14.booking.v1.ItemKindR\x04kind\x12\x19\n" +
+	"\boffer_id\x18\x03 \x01(\tR\aofferId\x12$\n" +
+	"\x0eseen_price_rub\x18\x04 \x01(\x03R\fseenPriceRub\x12(\n" +
+	"\x10actual_price_rub\x18\x05 \x01(\x03R\x0eactualPriceRub*h\n" +
+	"\bItemKind\x12\x19\n" +
+	"\x15ITEM_KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eITEM_KIND_STAY\x10\x01\x12\x15\n" +
+	"\x11ITEM_KIND_JOURNEY\x10\x02\x12\x16\n" +
+	"\x12ITEM_KIND_TRANSFER\x10\x032\xdb\x01\n" +
 	"\x0eBookingService\x12@\n" +
 	"\vCreateOrder\x12\x1e.booking.v1.CreateOrderRequest\x1a\x11.booking.v1.Order\x12:\n" +
-	"\bGetOrder\x12\x1b.booking.v1.GetOrderRequest\x1a\x11.booking.v1.OrderB$Z\"horkilion/gen/booking/v1;bookingv1b\x06proto3"
+	"\bGetOrder\x12\x1b.booking.v1.GetOrderRequest\x1a\x11.booking.v1.Order\x12K\n" +
+	"\n" +
+	"ListOrders\x12\x1d.booking.v1.ListOrdersRequest\x1a\x1e.booking.v1.ListOrdersResponseB$Z\"horkilion/gen/booking/v1;bookingv1b\x06proto3"
 
 var (
 	file_booking_v1_booking_proto_rawDescOnce sync.Once
@@ -332,22 +639,41 @@ func file_booking_v1_booking_proto_rawDescGZIP() []byte {
 	return file_booking_v1_booking_proto_rawDescData
 }
 
-var file_booking_v1_booking_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_booking_v1_booking_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_booking_v1_booking_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_booking_v1_booking_proto_goTypes = []any{
-	(*CreateOrderRequest)(nil), // 0: booking.v1.CreateOrderRequest
-	(*GetOrderRequest)(nil),    // 1: booking.v1.GetOrderRequest
-	(*Order)(nil),              // 2: booking.v1.Order
+	(ItemKind)(0),              // 0: booking.v1.ItemKind
+	(*OrderItem)(nil),          // 1: booking.v1.OrderItem
+	(*CreateOrderRequest)(nil), // 2: booking.v1.CreateOrderRequest
+	(*Order)(nil),              // 3: booking.v1.Order
+	(*GetOrderRequest)(nil),    // 4: booking.v1.GetOrderRequest
+	(*ListOrdersRequest)(nil),  // 5: booking.v1.ListOrdersRequest
+	(*ListOrdersResponse)(nil), // 6: booking.v1.ListOrdersResponse
+	(*PriceChanged)(nil),       // 7: booking.v1.PriceChanged
+	(*ItemPrice)(nil),          // 8: booking.v1.ItemPrice
+	(*v1.Stay)(nil),            // 9: lodging.v1.Stay
+	(*v11.Travelers)(nil),      // 10: common.v1.Travelers
 }
 var file_booking_v1_booking_proto_depIdxs = []int32{
-	0, // 0: booking.v1.BookingService.CreateOrder:input_type -> booking.v1.CreateOrderRequest
-	1, // 1: booking.v1.BookingService.GetOrder:input_type -> booking.v1.GetOrderRequest
-	2, // 2: booking.v1.BookingService.CreateOrder:output_type -> booking.v1.Order
-	2, // 3: booking.v1.BookingService.GetOrder:output_type -> booking.v1.Order
-	2, // [2:4] is the sub-list for method output_type
-	0, // [0:2] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	0,  // 0: booking.v1.OrderItem.kind:type_name -> booking.v1.ItemKind
+	9,  // 1: booking.v1.OrderItem.stay:type_name -> lodging.v1.Stay
+	10, // 2: booking.v1.OrderItem.travelers:type_name -> common.v1.Travelers
+	1,  // 3: booking.v1.CreateOrderRequest.items:type_name -> booking.v1.OrderItem
+	1,  // 4: booking.v1.Order.items:type_name -> booking.v1.OrderItem
+	3,  // 5: booking.v1.ListOrdersResponse.orders:type_name -> booking.v1.Order
+	8,  // 6: booking.v1.PriceChanged.items:type_name -> booking.v1.ItemPrice
+	0,  // 7: booking.v1.ItemPrice.kind:type_name -> booking.v1.ItemKind
+	2,  // 8: booking.v1.BookingService.CreateOrder:input_type -> booking.v1.CreateOrderRequest
+	4,  // 9: booking.v1.BookingService.GetOrder:input_type -> booking.v1.GetOrderRequest
+	5,  // 10: booking.v1.BookingService.ListOrders:input_type -> booking.v1.ListOrdersRequest
+	3,  // 11: booking.v1.BookingService.CreateOrder:output_type -> booking.v1.Order
+	3,  // 12: booking.v1.BookingService.GetOrder:output_type -> booking.v1.Order
+	6,  // 13: booking.v1.BookingService.ListOrders:output_type -> booking.v1.ListOrdersResponse
+	11, // [11:14] is the sub-list for method output_type
+	8,  // [8:11] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_booking_v1_booking_proto_init() }
@@ -360,13 +686,14 @@ func file_booking_v1_booking_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_booking_v1_booking_proto_rawDesc), len(file_booking_v1_booking_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   3,
+			NumEnums:      1,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_booking_v1_booking_proto_goTypes,
 		DependencyIndexes: file_booking_v1_booking_proto_depIdxs,
+		EnumInfos:         file_booking_v1_booking_proto_enumTypes,
 		MessageInfos:      file_booking_v1_booking_proto_msgTypes,
 	}.Build()
 	File_booking_v1_booking_proto = out.File

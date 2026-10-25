@@ -42,8 +42,8 @@ jobs:
           printf '%s\n' "$files"
           changed() { grep -qE "$1|^\.github/" <<<"$files" && echo true || echo false; }
           {
-            echo "backend=$(changed '^(cmd|internal|gen|migrations|proto)/|^go\.(mod|sum)$|^Dockerfile$|^\.dockerignore$')"
-            echo "web=$(changed '^web/')"
+            echo "backend=$(changed '^(api|cmd|config|internal|gen|migrations|proto|scripts)/|^go\.(mod|sum)$|^Dockerfile$|^\.dockerignore$')"
+            echo "web=$(changed '^(api|web)/|^redocly\.yaml$')"
             echo "deploy=$(changed '^deploy/')"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -56,8 +56,19 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
+      - name: Install protoc and plugins
+        run: |
+          curl -sSfL -o /tmp/protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-linux-x86_64.zip
+          sudo unzip -qo /tmp/protoc.zip -d /usr/local bin/protoc 'include/*'
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+      - name: Generated Go code matches proto/
+        run: |
+          ./scripts/gen-proto.sh
+          git add -N gen
+          git diff --exit-code gen || { echo "::error::gen/ is stale: run scripts/gen-proto.sh and commit"; exit 1; }
       - name: gofmt
-        run: test -z "$(gofmt -l cmd internal migrations)"
+        run: test -z "$(gofmt -l api cmd internal migrations)"
       - run: go vet ./...
       - run: go test -race ./...
 
@@ -76,7 +87,25 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Lint OpenAPI
+        run: npx -y @redocly/cli@2.71.0 lint ../api/openapi.yaml --config ../redocly.yaml
+      - name: TS types match api/openapi.yaml
+        run: |
+          npm run gen:api
+          git diff --exit-code src/api/schema.ts || { echo "::error::web/src/api/schema.ts is stale: run npm run gen:api and commit"; exit 1; }
+      - run: npm test
       - run: npm run build
+
+  # Keep a Changelog 1.1.0 with a commit hash in every entry. Runs on pull requests only: after a
+  # squash or rebase merge the branch hashes are not in main, and that must not block the deploy.
+  changelog:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/check-changelog.py CHANGELOG.md
 
   compose:
     needs: changes

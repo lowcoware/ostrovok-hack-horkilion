@@ -1,0 +1,79 @@
+syntax = "proto3";
+
+package catalog.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "horkilion/gen/catalog/v1;catalogv1";
+
+// CatalogService suggests destinations and tells the weather there.
+service CatalogService {
+  rpc SearchDestinations(SearchDestinationsRequest) returns (SearchDestinationsResponse);
+  rpc GetWeather(GetWeatherRequest) returns (Weather);
+}
+
+message SearchDestinationsRequest {
+  // City the trip starts from.
+  string origin = 1;
+  // Exact dates in YYYY-MM-DD, or a month in YYYY-MM when dates are flexible.
+  string depart_date = 2;
+  string return_date = 3;
+  string month = 4;
+  common.v1.Travelers travelers = 5;
+  // Budget for the whole trip, 0 for no budget.
+  int64 budget_rub = 6;
+  // Mood tags: "sea", "warm", "kids", "nature", "mountains", "city".
+  repeated string tags = 7;
+  // Longest acceptable one-way travel time, 0 for no limit.
+  double max_travel_hours = 8;
+  // Only Russia and countries without a visa for Russian citizens.
+  bool russia_and_visa_free_only = 9;
+  int32 limit = 10;
+}
+
+message SearchDestinationsResponse {
+  repeated Destination destinations = 1;
+}
+
+message Destination {
+  string id = 1;
+  string name = 2;
+  string country = 3;
+  // ISO 3166-1 alpha-2.
+  string country_code = 4;
+  common.v1.Place place = 5;
+  repeated string tags = 6;
+  // Estimate of the whole trip: transport both ways and the stay.
+  int64 estimated_total_rub = 7;
+  // One-way travel time from the origin.
+  double travel_hours = 8;
+  Weather weather = 9;
+  repeated common.v1.Source sources = 10;
+}
+
+message GetWeatherRequest {
+  // City name, geocoded by the provider. Ignored when point is set.
+  string city = 1;
+  common.v1.GeoPoint point = 2;
+  // Date in YYYY-MM-DD.
+  string date = 3;
+}
+
+message Weather {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    // Forecast for dates within the forecast window.
+    KIND_FORECAST = 1;
+    // Climate estimate for dates beyond it.
+    KIND_CLIMATE_NORMAL = 2;
+  }
+
+  common.v1.Place place = 1;
+  // Date in YYYY-MM-DD.
+  string date = 2;
+  double temp_max_c = 3;
+  double temp_min_c = 4;
+  double precipitation_mm = 5;
+  Kind kind = 6;
+  repeated common.v1.Source sources = 7;
+}

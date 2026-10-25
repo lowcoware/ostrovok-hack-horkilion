@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package transfer.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "horkilion/gen/transfer/v1;transferv1";
+
+// TransferService finds ground transport between a station or airport and a hotel.
+service TransferService {
+  rpc SearchTransfers(SearchTransfersRequest) returns (SearchTransfersResponse);
+  // GetOffer re-prices one transfer. Same input, same price as in the search.
+  rpc GetOffer(GetOfferRequest) returns (Transfer);
+}
+
+enum Mode {
+  MODE_UNSPECIFIED = 0;
+  MODE_TAXI = 1;
+  MODE_SHUTTLE = 2;
+  MODE_PUBLIC_TRANSPORT = 3;
+}
+
+message SearchTransfersRequest {
+  common.v1.Place from = 1;
+  common.v1.Place to = 2;
+  // RFC 3339 in the time zone of the place.
+  string depart_at = 3;
+  common.v1.Travelers passengers = 4;
+}
+
+message SearchTransfersResponse {
+  repeated Transfer transfers = 1;
+}
+
+message GetOfferRequest {
+  string transfer_id = 1;
+  common.v1.Travelers passengers = 2;
+}
+
+message Transfer {
+  string id = 1;
+  Mode mode = 2;
+  common.v1.Place from = 3;
+  common.v1.Place to = 4;
+  string depart_at = 5;
+  int32 duration_minutes = 6;
+  // For all passengers.
+  int64 price_rub = 7;
+  repeated common.v1.Source sources = 8;
+}

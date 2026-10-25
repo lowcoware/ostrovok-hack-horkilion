@@ -9,7 +9,9 @@ import (
 	"google.golang.org/grpc"
 
 	bookingv1 "horkilion/gen/booking/v1"
-	inventoryv1 "horkilion/gen/inventory/v1"
+	lodgingv1 "horkilion/gen/lodging/v1"
+	transferv1 "horkilion/gen/transfer/v1"
+	transportv1 "horkilion/gen/transport/v1"
 	"horkilion/internal/booking"
 	"horkilion/internal/platform"
 )
@@ -55,7 +57,11 @@ func run() error {
 	platform.StartOps(ctx, platform.PostgresReady(db), platform.NATSReady(nc))
 	go booking.RunOutboxRelay(ctx, db, js)
 
-	srv := booking.NewServer(db, inventoryv1.NewInventoryServiceClient(invConn))
+	srv := booking.NewServer(db, booking.Suppliers{
+		Lodging:   lodgingv1.NewLodgingServiceClient(invConn),
+		Transport: transportv1.NewTransportServiceClient(invConn),
+		Transfer:  transferv1.NewTransferServiceClient(invConn),
+	})
 	return platform.ServeGRPC(ctx, func(g *grpc.Server) {
 		bookingv1.RegisterBookingServiceServer(g, srv)
 	})

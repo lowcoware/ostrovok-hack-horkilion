@@ -26,9 +26,16 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  # Supplier services. Each runs the provider named in its *_PROVIDER variable;
+  # an unknown name stops the container at start with the allowed values.
   inventory:
     <<: *service
     image: ${IMAGE_REGISTRY:-horkilion}/horkilion-inventory:${BACKEND_TAG:-latest}
+    environment:
+      CATALOG_PROVIDER: ${CATALOG_PROVIDER:-open-data}
+      LODGING_PROVIDER: ${LODGING_PROVIDER:-synthetic}
+      TRANSPORT_PROVIDER: ${TRANSPORT_PROVIDER:-stub}
+      TRANSFER_PROVIDER: ${TRANSFER_PROVIDER:-stub}
 
   booking:
     <<: *service
@@ -49,10 +56,14 @@ services:
       DATABASE_URL: *db-url
       NATS_URL: nats://nats:4222
       INVENTORY_ADDR: inventory:9000
+      # Any OpenAI-compatible endpoint. OPENROUTER_API_KEY is read when LLM_API_KEY is empty.
+      LLM_API_KEY: ${LLM_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://openrouter.ai/api/v1}
       LLM_MODEL: ${LLM_MODEL:-deepseek/deepseek-v4.1-flash}
       LLM_ROUTER_MODEL: ${LLM_ROUTER_MODEL:-qwen/qwen3.8-27b}
+      # JSON merged into every LLM request; empty means {"provider":{"data_collection":"deny"}}.
+      LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-}
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD}
@@ -69,9 +80,11 @@ services:
     <<: *service
     image: ${IMAGE_REGISTRY:-horkilion}/horkilion-gateway:${BACKEND_TAG:-latest}
     environment:
+      DATABASE_URL: *db-url
       NATS_URL: nats://nats:4222
       BOOKING_ADDR: booking:9000
     depends_on:
+      migrate: { condition: service_completed_successfully }
       nats: { condition: service_started }
       booking: { condition: service_healthy }
 

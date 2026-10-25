@@ -1,0 +1,1148 @@
+openapi: 3.1.0
+info:
+  title: О!дин запрос — API агента путешествий
+  version: 1.0.0
+  description: |
+    Внешнее API агента. Наш веб-интерфейс — один из клиентов этого API, любой другой клиент
+    (сайт партнёра, мобильное приложение) работает через те же эндпоинты и события.
+
+    ## Владелец
+
+    Все данные принадлежат владельцу: анонимному идентификатору из cookie `horkilion_owner`,
+    которую gateway выставляет при первом запросе, или аккаунту после входа. Сессия или заказ
+    другого владельца отвечает `404`, как несуществующие.
+
+    ## Ход агента
+
+    1. Клиент открывает `GET /sessions/{id}/events` (SSE).
+    2. Отправляет `POST /sessions/{id}/messages` или правку плана `POST /sessions/{id}/plan`,
+       ответ `202` с `message_id`.
+    3. Получает события хода с `turn_id`, равным этому `message_id`: `status`, `token`, `plan`,
+       `clarify`, затем `done` или `error`.
+
+    После переподключения к SSE события, отправленные в разрыве, не повторяются: клиент делает
+    `GET /sessions/{id}` и продолжает с актуального плана.
+
+    ## Форматы
+
+    Деньги — целые рубли. Даты — `YYYY-MM-DD`. Время — RFC 3339 с часовым поясом места
+    (`2026-11-20T09:40:00+03:00`). Ошибки — объект `Error`.
+servers:
+  - url: /api/v1
+tags:
+  - name: account
+    description: Аккаунт. Реализация в фазе 2, сейчас эндпоинты входа отвечают 501.
+  - name: sessions
+    description: Поездки, сообщения агенту и правки плана.
+  - name: orders
+    description: Заказы.
+  - name: sources
+    description: Откуда данные.
+security:
+  - owner: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [account]
+      operationId: register
+      summary: Регистрация
+      description: Анонимные поездки, планы и заказы переходят в новый аккаунт.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201":
+          description: Аккаунт создан, сессия входа в cookie.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: Логин занят (`code` = `login_taken`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /auth/login:
+    post:
+      tags: [account]
+      operationId: login
+      summary: Вход
+      description: Анонимные данные текущего владельца переходят в аккаунт.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200":
+          description: Вход выполнен, сессия входа в cookie.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: Неверный логин или пароль (`code` = `invalid_credentials`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /auth/logout:
+    post:
+      tags: [account]
+      operationId: logout
+      summary: Выход
+      responses:
+        "204":
+          description: Сессия входа завершена.
+        "501": { $ref: "#/components/responses/NotImplemented" }
+  /me:
+    get:
+      tags: [account]
+      operationId: getMe
+      summary: Текущий владелец
+      responses:
+        "200":
+          description: Владелец запроса.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+
+  /sessions:
+    post:
+      tags: [sessions]
+      operationId: createSession
+      summary: Новая поездка
+      responses:
+        "201":
+          description: Сессия создана.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionCreated" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      tags: [sessions]
+      operationId: listSessions
+      summary: Поездки владельца
+      responses:
+        "200":
+          description: Поездки, новые первыми.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionList" }
+  /sessions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      tags: [sessions]
+      operationId: getSession
+      summary: План и история сообщений
+      responses:
+        "200":
+          description: Текущий план и история.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionDetails" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sessions/{id}/messages:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [sessions]
+      operationId: postMessage
+      summary: Сообщение агенту
+      description: Ход агента выполняется асинхронно, результат приходит событиями SSE.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MessageRequest" }
+      responses:
+        "202": { $ref: "#/components/responses/TurnAccepted" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /sessions/{id}/plan:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [sessions]
+      operationId: patchPlan
+      summary: Правка плана из интерфейса
+      description: |
+        Ручная правка карточек идёт через тот же механизм, что и текстовое сообщение: патч
+        применяется к плану, устаревшее инвалидируется, новый план приходит событием `plan`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PlanPatch" }
+      responses:
+        "202": { $ref: "#/components/responses/TurnAccepted" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+  /sessions/{id}/events:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      tags: [sessions]
+      operationId: sessionEvents
+      summary: События хода агента (SSE)
+      description: |
+        Поток Server-Sent Events. Каждое событие — строка `data:` с JSON-объектом `AgentEvent`,
+        поле `event` не используется. Каждые 15 секунд приходит комментарий `: ping`.
+      responses:
+        "200":
+          description: Поток событий.
+          content:
+            text/event-stream:
+              schema: { $ref: "#/components/schemas/AgentEvent" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /sessions/{id}/checkout:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    post:
+      tags: [sessions]
+      operationId: checkout
+      summary: Заказ из выбранных вариантов
+      description: |
+        Заказ собирается из выбранных вариантов всех компонентов плана (`selected_id`). Booking
+        заново запрашивает цену каждой позиции у её поставщика; если цена отличается от плана,
+        заказ не создаётся и возвращается `409` с `code` = `price_changed` и новыми ценами.
+        Повтор с тем же `Idempotency-Key` возвращает уже созданный заказ.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID, один на попытку оформления.
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckoutRequest" }
+      responses:
+        "200":
+          description: Заказ создан и оплачен (оплата имитирована).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: |
+            Заказ не создан: `nothing_selected`, если в плане нет выбранных вариантов;
+            `offer_unavailable`, если выбранный вариант больше не предлагается;
+            `price_changed`, если цена изменилась (`details` — `PriceChangedDetails`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+        "503": { $ref: "#/components/responses/Unavailable" }
+
+  /orders:
+    get:
+      tags: [orders]
+      operationId: listOrders
+      summary: Заказы владельца
+      responses:
+        "200":
+          description: Заказы, новые первыми.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderList" }
+  /orders/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [orders]
+      operationId: getOrder
+      summary: Заказ
+      responses:
+        "200":
+          description: Заказ.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /sources:
+    get:
+      tags: [sources]
+      operationId: listSources
+      summary: Откуда данные
+      description: Провайдеры данных для страницы «Откуда данные».
+      security: []
+      responses:
+        "200":
+          description: Провайдеры.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceList" }
+
+components:
+  securitySchemes:
+    owner:
+      type: apiKey
+      in: cookie
+      name: horkilion_owner
+      description: Анонимный владелец. Gateway выставляет cookie сам, если её нет.
+
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    TurnAccepted:
+      description: Ход принят, события придут в SSE с `turn_id` = `message_id`.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/TurnAccepted" }
+    BadRequest:
+      description: Неверный запрос (`code` = `bad_request`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Не найдено или принадлежит другому владельцу (`code` = `not_found`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    TooManyRequests:
+      description: Слишком много запросов (`code` = `rate_limited`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    Unavailable:
+      description: Зависимость недоступна, можно повторить позже (`code` = `unavailable`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotImplemented:
+      description: Ещё не реализовано (`code` = `not_implemented`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    # ---------------------------------------------------------------- common
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum:
+                - bad_request
+                - not_found
+                - rate_limited
+                - unavailable
+                - nothing_selected
+                - price_changed
+                - offer_unavailable
+                - login_taken
+                - invalid_credentials
+                - not_implemented
+                - internal
+            message:
+              type: string
+              description: Текст для человека, по-русски.
+            details:
+              description: Подробности, сейчас только для `price_changed`.
+              $ref: "#/components/schemas/PriceChangedDetails"
+    PriceChangedDetails:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [index, kind, offer_id, seen_price_rub, actual_price_rub]
+            properties:
+              index:
+                type: integer
+                description: Позиция в заказе.
+              kind: { $ref: "#/components/schemas/OptionKind" }
+              offer_id: { type: string }
+              seen_price_rub: { type: integer, format: int64 }
+              actual_price_rub: { type: integer, format: int64 }
+    Source:
+      type: object
+      description: Происхождение данных сущности. Полей у сущности несколько, и источников тоже.
+      required: [provider, kind, field_scope]
+      properties:
+        provider:
+          type: string
+          description: Машинное имя, например `osm`, `ourairports`, `open-meteo`, `synthetic`.
+          examples: [osm]
+        kind:
+          type: string
+          enum: [real, synthetic, derived]
+          description: "`derived` — вычислено из реальных данных."
+        field_scope:
+          type: string
+          description: Какие поля покрывает источник, `*` — все.
+          examples: [location]
+        url:
+          type: string
+          description: Страница датасета или API, для синтетики пусто.
+        license:
+          type: string
+          description: SPDX-идентификатор лицензии.
+          examples: [ODbL-1.0]
+        fetched_at:
+          type: string
+          format: date-time
+    GeoPoint:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number }
+        lon: { type: number }
+    Place:
+      type: object
+      required: [name, kind]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        kind:
+          type: string
+          enum: [city, airport, station, hotel, address]
+        country_code:
+          type: string
+          description: ISO 3166-1 alpha-2.
+        point: { $ref: "#/components/schemas/GeoPoint" }
+        timezone:
+          type: string
+          description: Часовой пояс IANA.
+          examples: [Europe/Moscow]
+        code:
+          type: string
+          description: Код IATA аэропорта или код станции.
+
+    # ---------------------------------------------------------------- account
+    Credentials:
+      type: object
+      required: [login, password]
+      properties:
+        login: { type: string, minLength: 3, maxLength: 64 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+    Me:
+      type: object
+      required: [owner_id, anonymous]
+      properties:
+        owner_id: { type: string }
+        anonymous: { type: boolean }
+        login:
+          type: string
+          description: Только для аккаунта.
+
+    # ---------------------------------------------------------------- sessions
+    SessionCreated:
+      type: object
+      required: [session_id]
+      properties:
+        session_id: { type: string, format: uuid }
+    SessionSummary:
+      type: object
+      required: [id, title, stage, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title:
+          type: string
+          description: Направление, пусто, пока оно не выбрано.
+        stage: { $ref: "#/components/schemas/Stage" }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items: { $ref: "#/components/schemas/SessionSummary" }
+    ChatMessage:
+      type: object
+      required: [role, text, created_at]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+        text: { type: string }
+        created_at: { type: string, format: date-time }
+    SessionDetails:
+      type: object
+      required: [plan, messages]
+      properties:
+        plan: { $ref: "#/components/schemas/TripPlan" }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/ChatMessage" }
+    MessageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+    TurnAccepted:
+      type: object
+      required: [message_id]
+      properties:
+        message_id:
+          type: string
+          format: uuid
+          description: Станет `turn_id` событий этого хода.
+    CheckoutRequest:
+      type: object
+      required: [guest_name]
+      properties:
+        guest_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    # ---------------------------------------------------------------- TripPlan v2
+    Stage:
+      type: string
+      enum: [clarify, inspire, search, compare, assemble, checkout, post_purchase]
+    ComponentName:
+      type: string
+      enum: [outbound, stay, return, transfer_arrival, transfer_departure]
+    TripPlan:
+      type: object
+      description: |
+        Единственный источник правды о поездке. Агент принимает решения по нему, фронт рисует
+        его как есть, eval сравнивает с ним. Каждый ход сохраняет новую версию.
+      required:
+        - session_id
+        - version
+        - stage
+        - constraints
+        - assumptions
+        - destination_options
+        - components
+        - checks
+        - conflicts
+        - total_rub
+        - over_budget
+      properties:
+        session_id: { type: string, format: uuid }
+        version:
+          type: integer
+          description: Растёт с каждым ходом.
+        stage: { $ref: "#/components/schemas/Stage" }
+        constraints: { $ref: "#/components/schemas/Constraints" }
+        assumptions:
+          type: array
+          items: { $ref: "#/components/schemas/Assumption" }
+        destination_options:
+          type: array
+          description: Варианты направлений этапа вдохновения.
+          items: { $ref: "#/components/schemas/DestinationOption" }
+        components: { $ref: "#/components/schemas/Components" }
+        weather:
+          description: Погода в направлении на дату отправления, если направление выбрано.
+          $ref: "#/components/schemas/Weather"
+        checks:
+          type: array
+          items: { $ref: "#/components/schemas/Check" }
+        conflicts:
+          type: array
+          items: { $ref: "#/components/schemas/Conflict" }
+        total_rub:
+          type: integer
+          format: int64
+          description: Сумма выбранных вариантов всех компонентов.
+        over_budget:
+          type: boolean
+          description: Сумма выбранного больше бюджета.
+    Constraints:
+      type: object
+      description: Что известно о поездке. Неизвестное отсутствует.
+      required: [dates, child_ages, pets, preferences]
+      properties:
+        origin:
+          type: string
+          description: Город отправления.
+        destination:
+          type: string
+          description: Направление, пусто, пока не выбрано.
+        dates: { $ref: "#/components/schemas/Dates" }
+        adults:
+          type: integer
+          minimum: 1
+          maximum: 10
+        child_ages:
+          type: array
+          description: Возраст каждого ребёнка, лет.
+          maxItems: 10
+          items: { type: integer, minimum: 0, maximum: 17 }
+        pets: { type: boolean }
+        budget: { $ref: "#/components/schemas/Budget" }
+        preferences: { $ref: "#/components/schemas/Preferences" }
+    Dates:
+      type: object
+      description: Даты задаются как `depart` и `return` либо как `depart` и `nights`.
+      properties:
+        depart:
+          type: string
+          format: date
+        return:
+          type: string
+          format: date
+        nights:
+          type: integer
+          minimum: 1
+          maximum: 30
+        flex_days:
+          type: integer
+          minimum: 0
+          maximum: 14
+          description: Насколько даты можно сдвинуть в обе стороны.
+    Budget:
+      type: object
+      required: [amount_rub, strict]
+      properties:
+        amount_rub:
+          type: integer
+          format: int64
+          minimum: 1
+          description: На всю поездку.
+        strict:
+          type: boolean
+          description: "`true` — нельзя превышать, `false` — ориентир."
+    Meal:
+      type: string
+      enum: [room_only, breakfast, half_board, all_inclusive]
+    TransportMode:
+      type: string
+      enum: [air, rail]
+    Preferences:
+      type: object
+      required: [transport_modes, moods]
+      properties:
+        meal: { $ref: "#/components/schemas/Meal" }
+        free_cancellation: { type: boolean }
+        transport_modes:
+          type: array
+          description: Пусто — любой вид транспорта.
+          items: { $ref: "#/components/schemas/TransportMode" }
+        max_travel_hours:
+          type: number
+          description: Максимум часов в пути в одну сторону.
+        moods:
+          type: array
+          description: Теги настроения, например `sea`, `warm`, `kids`, `nature`.
+          items: { type: string }
+    PreferencesPatch:
+      type: object
+      properties:
+        meal: { $ref: "#/components/schemas/Meal" }
+        free_cancellation: { type: boolean }
+        transport_modes:
+          type: array
+          items: { $ref: "#/components/schemas/TransportMode" }
+        max_travel_hours: { type: number }
+        moods:
+          type: array
+          items: { type: string }
+    Assumption:
+      type: object
+      description: Что агент решил сам. Пользователь видит и может поправить.
+      required: [field, value, reason]
+      properties:
+        field:
+          type: string
+          description: Путь поля в `constraints`, например `dates.nights`.
+        value: { type: string }
+        reason: { type: string }
+    Explanation:
+      type: object
+      required: [why, tradeoffs, risks]
+      properties:
+        why:
+          type: string
+          description: Почему вариант подходит этому пользователю.
+        tradeoffs:
+          type: array
+          description: Чем пришлось пожертвовать.
+          items: { type: string }
+        risks:
+          type: array
+          description: Какие есть риски.
+          items: { type: string }
+    DestinationOption:
+      type: object
+      required: [destination]
+      properties:
+        destination: { $ref: "#/components/schemas/Destination" }
+        explanation: { $ref: "#/components/schemas/Explanation" }
+    Components:
+      type: object
+      required: [outbound, stay, return, transfer_arrival, transfer_departure]
+      properties:
+        outbound: { $ref: "#/components/schemas/Component" }
+        stay: { $ref: "#/components/schemas/Component" }
+        return: { $ref: "#/components/schemas/Component" }
+        transfer_arrival: { $ref: "#/components/schemas/Component" }
+        transfer_departure: { $ref: "#/components/schemas/Component" }
+    Component:
+      type: object
+      required: [options]
+      properties:
+        options:
+          type: array
+          items: { $ref: "#/components/schemas/Option" }
+        selected_id:
+          type: string
+          description: Id выбранного варианта из `options`.
+    OptionKind:
+      type: string
+      enum: [stay, journey, transfer]
+    OptionFlag:
+      type: string
+      enum: [over_budget, selected_unavailable]
+    Option:
+      description: Вариант компонента. Вид предложения задаёт `kind`.
+      oneOf:
+        - $ref: "#/components/schemas/StayOption"
+        - $ref: "#/components/schemas/JourneyOption"
+        - $ref: "#/components/schemas/TransferOption"
+      discriminator:
+        propertyName: kind
+        mapping:
+          stay: "#/components/schemas/StayOption"
+          journey: "#/components/schemas/JourneyOption"
+          transfer: "#/components/schemas/TransferOption"
+    StayOption:
+      type: object
+      required: [id, kind, offer, price_rub, flags, sources]
+      properties:
+        id: { type: string }
+        kind: { type: string, const: stay }
+        offer: { $ref: "#/components/schemas/Hotel" }
+        price_rub: { type: integer, format: int64 }
+        explanation: { $ref: "#/components/schemas/Explanation" }
+        flags:
+          type: array
+          items: { $ref: "#/components/schemas/OptionFlag" }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    JourneyOption:
+      type: object
+      required: [id, kind, offer, price_rub, flags, sources]
+      properties:
+        id: { type: string }
+        kind: { type: string, const: journey }
+        offer: { $ref: "#/components/schemas/Journey" }
+        price_rub: { type: integer, format: int64 }
+        explanation: { $ref: "#/components/schemas/Explanation" }
+        flags:
+          type: array
+          items: { $ref: "#/components/schemas/OptionFlag" }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    TransferOption:
+      type: object
+      required: [id, kind, offer, price_rub, flags, sources]
+      properties:
+        id: { type: string }
+        kind: { type: string, const: transfer }
+        offer: { $ref: "#/components/schemas/Transfer" }
+        price_rub: { type: integer, format: int64 }
+        explanation: { $ref: "#/components/schemas/Explanation" }
+        flags:
+          type: array
+          items: { $ref: "#/components/schemas/OptionFlag" }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    Check:
+      type: object
+      description: Проверка стыковки компонентов.
+      required: [kind, status, message, components]
+      properties:
+        kind:
+          type: string
+          enum: [arrival_before_checkin, transfer_fits, checkout_before_departure, dates_consistent]
+        status:
+          type: string
+          enum: [ok, warn, fail]
+        message: { type: string }
+        components:
+          type: array
+          items: { $ref: "#/components/schemas/ComponentName" }
+    Conflict:
+      type: object
+      description: Нарушенное ограничение или стыковка. Агент обязан сказать о нём пользователю.
+      required: [kind, message, components]
+      properties:
+        kind:
+          type: string
+          examples: [selected_unavailable]
+        message: { type: string }
+        components:
+          type: array
+          items: { $ref: "#/components/schemas/ComponentName" }
+
+    # ---------------------------------------------------------------- plan patch
+    PlanPatch:
+      type: object
+      description: |
+        Правка плана: те же поля, что в `Constraints`, все необязательные, плюс выбор варианта.
+        Отсутствующее поле не меняется.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        origin: { type: string, minLength: 1, maxLength: 100 }
+        destination: { type: string, minLength: 1, maxLength: 100 }
+        dates: { $ref: "#/components/schemas/Dates" }
+        adults: { type: integer, minimum: 1, maximum: 10 }
+        child_ages:
+          type: array
+          maxItems: 10
+          items: { type: integer, minimum: 0, maximum: 17 }
+        pets: { type: boolean }
+        budget: { $ref: "#/components/schemas/Budget" }
+        preferences: { $ref: "#/components/schemas/PreferencesPatch" }
+        select:
+          type: object
+          required: [component, option_id]
+          properties:
+            component: { $ref: "#/components/schemas/ComponentName" }
+            option_id: { type: string, minLength: 1 }
+
+    # ---------------------------------------------------------------- supplier entities
+    Destination:
+      type: object
+      required: [id, name, country, country_code, place, tags, estimated_total_rub, travel_hours, sources]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        country: { type: string }
+        country_code: { type: string }
+        place: { $ref: "#/components/schemas/Place" }
+        tags:
+          type: array
+          items: { type: string }
+        estimated_total_rub:
+          type: integer
+          format: int64
+          description: Оценка всей поездки, транспорт и проживание.
+        travel_hours:
+          type: number
+          description: Время в пути в одну сторону.
+        weather: { $ref: "#/components/schemas/Weather" }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    Weather:
+      type: object
+      required: [place, date, temp_max_c, temp_min_c, precipitation_mm, kind, sources]
+      properties:
+        place: { $ref: "#/components/schemas/Place" }
+        date: { type: string, format: date }
+        temp_max_c: { type: number }
+        temp_min_c: { type: number }
+        precipitation_mm: { type: number }
+        kind:
+          type: string
+          enum: [forecast, climate_normal]
+          description: "`forecast` — прогноз, `climate_normal` — оценка по прошлым годам."
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    Hotel:
+      type: object
+      required:
+        - id
+        - name
+        - city
+        - place
+        - stars
+        - rating
+        - meal
+        - free_cancellation
+        - cancellation_policy
+        - pets_allowed
+        - check_in_time
+        - check_out_time
+        - price_per_night_rub
+        - total_price_rub
+        - distance_to_center_km
+        - sources
+      properties:
+        id: { type: string }
+        name: { type: string }
+        city: { type: string }
+        place: { $ref: "#/components/schemas/Place" }
+        stars: { type: integer, minimum: 0, maximum: 5 }
+        rating: { type: number }
+        meal: { $ref: "#/components/schemas/Meal" }
+        free_cancellation: { type: boolean }
+        cancellation_policy:
+          type: string
+          description: Условия отмены текстом.
+        pets_allowed: { type: boolean }
+        check_in_time:
+          type: string
+          description: Местное время `HH:MM`.
+          examples: ["14:00"]
+        check_out_time:
+          type: string
+          examples: ["12:00"]
+        price_per_night_rub: { type: integer, format: int64 }
+        total_price_rub: { type: integer, format: int64 }
+        distance_to_center_km: { type: number }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    Journey:
+      type: object
+      description: Путь туда или обратно, возможно с пересадками.
+      required: [id, segments, duration_minutes, transfers, baggage_included, refundable, price_rub, sources]
+      properties:
+        id: { type: string }
+        segments:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Segment" }
+        duration_minutes: { type: integer }
+        transfers:
+          type: integer
+          description: Число пересадок.
+        baggage_included: { type: boolean }
+        refundable: { type: boolean }
+        price_rub:
+          type: integer
+          format: int64
+          description: За всех пассажиров.
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+    Segment:
+      type: object
+      required: [mode, carrier, number, from, to, depart_at, arrive_at]
+      properties:
+        mode: { $ref: "#/components/schemas/TransportMode" }
+        carrier: { type: string }
+        number:
+          type: string
+          description: Номер рейса или поезда.
+        from: { $ref: "#/components/schemas/Place" }
+        to: { $ref: "#/components/schemas/Place" }
+        depart_at: { type: string, format: date-time }
+        arrive_at: { type: string, format: date-time }
+    Transfer:
+      type: object
+      required: [id, mode, from, to, depart_at, duration_minutes, price_rub, sources]
+      properties:
+        id: { type: string }
+        mode:
+          type: string
+          enum: [taxi, shuttle, public_transport]
+        from: { $ref: "#/components/schemas/Place" }
+        to: { $ref: "#/components/schemas/Place" }
+        depart_at: { type: string, format: date-time }
+        duration_minutes: { type: integer }
+        price_rub:
+          type: integer
+          format: int64
+          description: За всех пассажиров.
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/Source" }
+
+    # ---------------------------------------------------------------- orders
+    OrderItem:
+      type: object
+      required: [kind, offer_id, title, price_rub]
+      properties:
+        kind: { $ref: "#/components/schemas/OptionKind" }
+        offer_id: { type: string }
+        title: { type: string }
+        price_rub: { type: integer, format: int64 }
+    Order:
+      type: object
+      required: [id, session_id, status, items, total_rub, guest_name, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [paid]
+          description: Оплата имитирована, заказ создаётся оплаченным.
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/OrderItem" }
+        total_rub: { type: integer, format: int64 }
+        guest_name: { type: string }
+        created_at: { type: string, format: date-time }
+    OrderList:
+      type: object
+      required: [orders]
+      properties:
+        orders:
+          type: array
+          items: { $ref: "#/components/schemas/Order" }
+
+    # ---------------------------------------------------------------- sources page
+    Provider:
+      type: object
+      required: [provider, title, description, kind, used_for]
+      properties:
+        provider:
+          type: string
+          description: Совпадает с `Source.provider`.
+        title: { type: string }
+        description: { type: string }
+        kind:
+          type: string
+          enum: [real, synthetic, derived]
+        url: { type: string }
+        license: { type: string }
+        fetched_at: { type: string, format: date-time }
+        used_for:
+          type: array
+          description: Какие сущности или поля берутся отсюда.
+          items: { type: string }
+    SourceList:
+      type: object
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items: { $ref: "#/components/schemas/Provider" }
+
+    # ---------------------------------------------------------------- SSE events
+    AgentEvent:
+      description: Событие хода агента. `seq` растёт внутри сессии.
+      oneOf:
+        - $ref: "#/components/schemas/StatusEvent"
+        - $ref: "#/components/schemas/TokenEvent"
+        - $ref: "#/components/schemas/PlanEvent"
+        - $ref: "#/components/schemas/ClarifyEvent"
+        - $ref: "#/components/schemas/DoneEvent"
+        - $ref: "#/components/schemas/ErrorEvent"
+      discriminator:
+        propertyName: type
+        mapping:
+          status: "#/components/schemas/StatusEvent"
+          token: "#/components/schemas/TokenEvent"
+          plan: "#/components/schemas/PlanEvent"
+          clarify: "#/components/schemas/ClarifyEvent"
+          done: "#/components/schemas/DoneEvent"
+          error: "#/components/schemas/ErrorEvent"
+    StatusEvent:
+      type: object
+      required: [type, session_id, turn_id, seq, data]
+      properties:
+        type: { type: string, const: status }
+        session_id: { type: string, format: uuid }
+        turn_id: { type: string }
+        seq: { type: integer, format: int64 }
+        data:
+          type: object
+          required: [stage, text]
+          properties:
+            stage: { $ref: "#/components/schemas/Stage" }
+            text:
+              type: string
+              description: Что агент делает сейчас, например «ищу перелёты».
+    TokenEvent:
+      type: object
+      required: [type, session_id, turn_id, seq, data]
+      properties:
+        type: { type: string, const: token }
+        session_id: { type: string, format: uuid }
+        turn_id: { type: string }
+        seq: { type: integer, format: int64 }
+        data:
+          type: object
+          required: [text]
+          properties:
+            text:
+              type: string
+              description: Фрагмент ответа агента, дописывается к предыдущим.
+    PlanEvent:
+      type: object
+      required: [type, session_id, turn_id, seq, data]
+      properties:
+        type: { type: string, const: plan }
+        session_id: { type: string, format: uuid }
+        turn_id: { type: string }
+        seq: { type: integer, format: int64 }
+        data: { $ref: "#/components/schemas/TripPlan" }
+    ClarifyEvent:
+      type: object
+      required: [type, session_id, turn_id, seq, data]
+      properties:
+        type: { type: string, const: clarify }
+        session_id: { type: string, format: uuid }
+        turn_id: { type: string }
+        seq: { type: integer, format: int64 }
+        data:
+          type: object
+          required: [question, quick_replies]
+          properties:
+            question: { type: string }
+            quick_replies:
+              type: array
+              description: Варианты быстрых ответов для кнопок.
+              items: { type: string }
+    DoneEvent:
+      type: object
+      required: [type, session_id, turn_id, seq, data]
+      properties:
+        type: { type: string, const: done }
+        session_id: { type: string, format: uuid }
+        turn_id: { type: string }
+        seq: { type: integer, format: int64 }
+        data:
+          type: object
+          required: [text, stage]
+          properties:
+            text:
+              type: string
+              description: Итоговое сообщение агента целиком.
+            stage: { $ref: "#/components/schemas/Stage" }
+    ErrorEvent:
+      type: object
+      required: [type, session_id, turn_id, seq, data]
+      properties:
+        type: { type: string, const: error }
+        session_id: { type: string, format: uuid }
+        turn_id: { type: string }
+        seq: { type: integer, format: int64 }
+        data:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }

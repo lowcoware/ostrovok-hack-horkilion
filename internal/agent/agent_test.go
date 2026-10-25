@@ -1,10 +1,15 @@
 package agent
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	inventoryv1 "horkilion/gen/inventory/v1"
+	"horkilion/internal/agent/plan"
+	"horkilion/internal/apitest"
+	"horkilion/internal/platform"
 )
 
 var today = time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
@@ -13,21 +18,21 @@ func TestRouteRules(t *testing.T) {
 	tests := []struct {
 		name string
 		text string
-		want Patch
+		want routed
 	}{
-		{"city after preposition", "Хочу в Сочи на 5 ночей", Patch{Destination: ptr("Сочи"), Nights: ptr(int32(5))}},
-		{"collective numeral", "Хочу в Сочи, нас двое", Patch{Destination: ptr("Сочи"), Adults: ptr(int32(2))}},
-		{"bare city", "Казань", Patch{Destination: ptr("Казань")}},
-		{"guests and pet", "нас 2 взрослых и 1 ребёнок, с нами едет собака", Patch{Adults: ptr(int32(2)), Children: ptr(int32(1)), Pets: ptr(true)}},
-		{"budget in thousands", "бюджет 80 тысяч", Patch{BudgetRub: ptr(int64(80000))}},
-		{"day and month rolls to next year", "заезд 05.03", Patch{CheckIn: ptr("2027-03-05")}},
-		{"lowercase month is not a city", "в ноябре", Patch{}},
-		{"empty", "", Patch{}},
+		{"city after preposition", "Хочу в Сочи на 5 ночей", routed{Destination: ptr("Сочи"), Nights: ptr(int32(5))}},
+		{"collective numeral", "Хочу в Сочи, нас двое", routed{Destination: ptr("Сочи"), Adults: ptr(int32(2))}},
+		{"bare city", "Казань", routed{Destination: ptr("Казань")}},
+		{"guests and pet", "нас 2 взрослых и 1 ребёнок, с нами едет собака", routed{Adults: ptr(int32(2)), Children: ptr(int32(1)), Pets: ptr(true)}},
+		{"budget in thousands", "бюджет 80 тысяч", routed{BudgetRub: ptr(int64(80000))}},
+		{"day and month rolls to next year", "заезд 05.03", routed{Depart: ptr("2027-03-05")}},
+		{"lowercase month is not a city", "в ноябре", routed{}},
+		{"empty", "", routed{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := routeRules(NewPlan("s"), tt.text, today)
-			if s(got.Destination) != s(tt.want.Destination) || s(got.CheckIn) != s(tt.want.CheckIn) ||
+			got := routeRules(plan.New("s"), tt.text, today)
+			if s(got.Destination) != s(tt.want.Destination) || s(got.Depart) != s(tt.want.Depart) ||
 				n(got.Nights) != n(tt.want.Nights) || n(got.Adults) != n(tt.want.Adults) ||
 				n(got.Children) != n(tt.want.Children) || b(got.Pets) != b(tt.want.Pets) ||
 				i64(got.BudgetRub) != i64(tt.want.BudgetRub) {
@@ -37,54 +42,85 @@ func TestRouteRules(t *testing.T) {
 	}
 }
 
-func TestApplyInvalidatesOnlyWhatChanged(t *testing.T) {
-	plan := NewPlan("s")
-	plan.Apply(Patch{Destination: ptr("Сочи")}, today)
-	plan.FillDefaults(today)
-	plan.SetOptions([]*inventoryv1.Hotel{{Id: "a", Name: "A", TotalPriceRub: 30000}, {Id: "b", Name: "B", TotalPriceRub: 90000}})
-	plan.Selected = &plan.Options[1]
-
-	plan.Apply(Patch{BudgetRub: ptr(int64(50000))}, today)
-	if len(plan.Options) != 2 {
-		t.Fatalf("budget change must keep options, got %d", len(plan.Options))
+func TestChildrenWithoutAgesBecomeAssumption(t *testing.T) {
+	p := plan.New("s")
+	p.Apply(routed{Destination: ptr("Сочи"), Children: ptr(int32(2))}.patch(), today)
+	if got := p.Constraints.ChildAges; len(got) != 2 || got[0] != plan.DefaultChildAge {
+		t.Fatalf("want two children of the default age, got %v", got)
 	}
-	if plan.Options[0].OverBudget || !plan.Options[1].OverBudget {
-		t.Errorf("over-budget flags are wrong: %+v", plan.Options)
+	if len(p.Assumptions) != 1 || p.Assumptions[0].Field != "child_ages" {
+		t.Errorf("unknown ages must be a visible assumption, got %+v", p.Assumptions)
 	}
 
-	plan.Apply(Patch{Pets: ptr(true)}, today)
-	if len(plan.Options) != 0 || plan.Selected == nil {
-		t.Fatalf("pets must clear options for re-check and keep the selection, got options=%d selected=%v", len(plan.Options), plan.Selected)
-	}
-	plan.SetOptions([]*inventoryv1.Hotel{{Id: "a", Name: "A", TotalPriceRub: 30000}})
-	if len(plan.Conflicts) != 1 || plan.Conflicts[0].Kind != "selected_unavailable" {
-		t.Errorf("dropped selection must become a conflict, got %+v", plan.Conflicts)
-	}
-
-	plan.Apply(Patch{Destination: ptr("Казань")}, today)
-	if plan.Selected != nil || len(plan.Options) != 0 {
-		t.Errorf("destination change must reset options and selection")
+	p.Apply(routed{ChildAges: []int32{4, 9}}.patch(), today)
+	if len(p.Assumptions) != 0 {
+		t.Errorf("named ages must drop the assumption, got %+v", p.Assumptions)
 	}
 }
 
-func TestApplyRejectsInvalidValues(t *testing.T) {
-	plan := NewPlan("s")
-	plan.Apply(Patch{Nights: ptr(int32(0)), Adults: ptr(int32(-1)), CheckIn: ptr("2020-01-01")}, today)
-	if c := plan.Constraints; c.Nights != 0 || c.Adults != 0 || c.CheckIn != "" {
-		t.Errorf("invalid values must be ignored, got %+v", c)
+func TestTemplateReplyWithoutDestinationAsksOneQuestion(t *testing.T) {
+	if got := templateReply(plan.New("s"), nil); strings.Count(got, "?") != 1 {
+		t.Errorf("want exactly one question, got %q", got)
 	}
 }
 
-func TestFillDefaultsRecordsAssumptions(t *testing.T) {
-	plan := NewPlan("s")
-	plan.Apply(Patch{Destination: ptr("Сочи"), Nights: ptr(int32(5))}, today)
-	plan.FillDefaults(today)
-	if len(plan.Assumptions) != 2 {
-		t.Fatalf("want assumptions for check_in and adults only, got %+v", plan.Assumptions)
+func TestEventsMatchSchema(t *testing.T) {
+	p := plan.New("4b0c5a5e-8f0e-4a43-9c55-2f3b9e3c7a10")
+	base := platform.Event{SessionID: p.SessionID, TurnID: "8f1b2c3d-0000-4000-8000-000000000001", Seq: nextSeq()}
+	for _, ev := range []platform.Event{
+		{Type: "status", Data: platform.StatusData{Stage: plan.StageSearch, Text: "ищу отели"}},
+		{Type: "token", Data: platform.TokenData{Text: "Привет"}},
+		{Type: "plan", Data: p},
+		{Type: "clarify", Data: platform.ClarifyData{Question: "Куда?", QuickReplies: cityExamples}},
+		{Type: "done", Data: platform.DoneData{Text: "Готово", Stage: plan.StageClarify}},
+		{Type: "error", Data: platform.ErrorData{Code: "internal", Message: "сбой"}},
+	} {
+		ev.SessionID, ev.TurnID, ev.Seq = base.SessionID, base.TurnID, base.Seq
+		apitest.ValidateSchema(t, "AgentEvent", ev)
 	}
-	plan.Apply(Patch{Adults: ptr(int32(3))}, today)
-	if len(plan.Assumptions) != 1 {
-		t.Errorf("an explicit value must drop its assumption, got %+v", plan.Assumptions)
+	if a, b := nextSeq(), nextSeq(); b <= a {
+		t.Errorf("seq must grow: %d then %d", a, b)
+	}
+}
+
+func TestLoadRules(t *testing.T) {
+	if _, err := LoadRules(filepath.Join("..", "..", "config", "rules.yaml")); err != nil {
+		t.Fatalf("config/rules.yaml must load: %v", err)
+	}
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"typo":       "connections:\n  min_arival_to_checkin_minutes: 60\nclarify:\n  max_questions_per_turn: 1\n",
+		"no clarify": "connections:\n  min_arrival_to_checkin_minutes: 60\n",
+		"not yaml":   "connections: [",
+	} {
+		path := filepath.Join(dir, name+".yaml")
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := LoadRules(path); err == nil {
+			t.Errorf("rules %q must be rejected", name)
+		}
+	}
+}
+
+func TestLLMConfigFromEnv(t *testing.T) {
+	t.Setenv("LLM_API_KEY", "")
+	t.Setenv("OPENROUTER_API_KEY", "old")
+	t.Setenv("LLM_EXTRA_BODY", "")
+	cfg, err := LLMConfigFromEnv()
+	if err != nil || cfg.APIKey != "old" || cfg.ExtraBody["provider"] == nil {
+		t.Fatalf("fallback key and default extra body: %+v, %v", cfg, err)
+	}
+
+	t.Setenv("LLM_API_KEY", "new")
+	t.Setenv("LLM_EXTRA_BODY", "{}")
+	if cfg, err := LLMConfigFromEnv(); err != nil || cfg.APIKey != "new" || len(cfg.ExtraBody) != 0 {
+		t.Errorf("LLM_API_KEY wins and an empty extra body is allowed: %+v, %v", cfg, err)
+	}
+
+	t.Setenv("LLM_EXTRA_BODY", "provider=deny")
+	if _, err := LLMConfigFromEnv(); err == nil {
+		t.Error("invalid LLM_EXTRA_BODY must be an error")
 	}
 }
 

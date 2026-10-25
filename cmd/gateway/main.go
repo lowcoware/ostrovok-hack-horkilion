@@ -27,6 +27,12 @@ func run() error {
 	ctx, stop := platform.SignalContext()
 	defer stop()
 
+	db, err := platform.ConnectPostgres(ctx)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+
 	nc, err := platform.ConnectNATS("gateway")
 	if err != nil {
 		return err
@@ -46,8 +52,9 @@ func run() error {
 	}
 	defer bookingConn.Close()
 
-	platform.StartOps(ctx, platform.NATSReady(nc))
-	gw := gateway.New(nc, js, bookingv1.NewBookingServiceClient(bookingConn))
+	platform.StartOps(ctx, platform.PostgresReady(db), platform.NATSReady(nc))
+	gw := gateway.New(gateway.NewPGStore(db), gateway.NATSTurns{JS: js}, gateway.NATSEvents{NC: nc},
+		bookingv1.NewBookingServiceClient(bookingConn))
 	srv := &http.Server{
 		Addr:              platform.Env("HTTP_ADDR", ":8080"),
 		Handler:           gw.Router(),

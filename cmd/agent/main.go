@@ -10,7 +10,8 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 
-	inventoryv1 "horkilion/gen/inventory/v1"
+	catalogv1 "horkilion/gen/catalog/v1"
+	lodgingv1 "horkilion/gen/lodging/v1"
 	"horkilion/internal/agent"
 	"horkilion/internal/analytics"
 	"horkilion/internal/platform"
@@ -31,6 +32,15 @@ func main() {
 func run() error {
 	ctx, stop := platform.SignalContext()
 	defer stop()
+
+	rules, err := agent.LoadRules(platform.Env("RULES_PATH", "config/rules.yaml"))
+	if err != nil {
+		return err
+	}
+	llmCfg, err := agent.LLMConfigFromEnv()
+	if err != nil {
+		return err
+	}
 
 	shutdownTracing, err := tracing.Setup(ctx, tracing.Config{
 		Service:   "agent",
@@ -73,17 +83,13 @@ func run() error {
 	}
 	defer invConn.Close()
 
-	llm := agent.NewLLM(agent.LLMConfig{
-		APIKey:      os.Getenv("OPENROUTER_API_KEY"),
-		BaseURL:     platform.Env("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
-		Model:       platform.Env("LLM_MODEL", "deepseek/deepseek-v4.1-flash"),
-		RouterModel: platform.Env("LLM_ROUTER_MODEL", "qwen/qwen3.8-27b"),
-	})
+	llm := agent.NewLLM(llmCfg)
 	if llm == nil {
-		slog.Warn("OPENROUTER_API_KEY is not set, running with the rule router and template replies")
+		slog.Warn("LLM_API_KEY is not set, running with the rule router and template replies")
 	}
 	an := analytics.New(os.Getenv("CLICKHOUSE_URL"), platform.Env("CLICKHOUSE_USER", "default"), os.Getenv("CLICKHOUSE_PASSWORD"))
-	ag := agent.New(agent.NewStore(db), llm, inventoryv1.NewInventoryServiceClient(invConn), nc, an)
+	ag := agent.New(agent.NewStore(db), llm, rules, lodgingv1.NewLodgingServiceClient(invConn),
+		catalogv1.NewCatalogServiceClient(invConn), nc, an)
 
 	// impulse: MaxAckPending 1 serializes all turns so one session's turns never race, replace with a per-session lock in NATS KV when one worker stops keeping up.
 	cons, err := js.CreateOrUpdateConsumer(ctx, platform.StreamAgentTurns, jetstream.ConsumerConfig{
@@ -131,7 +137,7 @@ func handle(ctx context.Context, ag *agent.Agent, msg jetstream.Msg) {
 	if meta != nil && meta.NumDelivered >= maxDeliver {
 		// impulse: exhausted turns are terminated and logged, add a dead-letter stream when they need replaying.
 		log.Error("turn failed for good", "err", err, "deliveries", meta.NumDelivered)
-		ag.EmitError(turn.SessionID, "Не получилось обработать сообщение. Попробуйте ещё раз чуть позже.")
+		ag.EmitError(turn, "Не получилось обработать сообщение. Попробуйте ещё раз чуть позже.")
 		_ = msg.Term()
 		return
 	}

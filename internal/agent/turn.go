@@ -1,12 +1,18 @@
+// Package agent runs agent turns: it routes a user message (or takes a plan
+// patch from the interface), applies it to the TripPlan with invalidation,
+// moves the plan through stage gates, calls the suppliers and streams the reply.
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -16,7 +22,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	inventoryv1 "horkilion/gen/inventory/v1"
+	catalogv1 "horkilion/gen/catalog/v1"
+	lodgingv1 "horkilion/gen/lodging/v1"
+	"horkilion/internal/agent/plan"
 	"horkilion/internal/analytics"
 	"horkilion/internal/platform"
 	"horkilion/internal/tracing"
@@ -25,11 +33,13 @@ import (
 const replyPrompt = `Ты агент Островка по планированию поездок. Отвечай по-русски, коротко и по делу.
 Решения принимай только по плану поездки (JSON ниже). Не выдумывай отели, цены и погоду, которых нет в плане.
 Если направления нет, задай один вопрос: куда ехать.
-Если есть варианты, предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски.
-Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts и о вариантах с over_budget.
-Одной фразой скажи, что данные об отелях синтетические. Чтобы забронировать, пользователь нажимает «Забронировать» у отеля.`
+Варианты отелей лежат в components.stay.options. Предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски.
+Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts и о вариантах с флагом over_budget.
+Если у данных в sources есть kind "synthetic", одной фразой скажи, что это синтетические данные. Чтобы оформить поездку, пользователь выбирает отель и нажимает «Оформить».`
 
 const historyLimit = 10
+
+var cityExamples = []string{"Сочи", "Казань", "Калининград"}
 
 var (
 	turnsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -48,13 +58,16 @@ type Agent struct {
 	store     *Store
 	router    Router
 	llm       *LLM
-	inventory inventoryv1.InventoryServiceClient
+	rules     Rules
+	lodging   lodgingv1.LodgingServiceClient
+	catalog   catalogv1.CatalogServiceClient
 	nc        *nats.Conn
 	analytics *analytics.Client
 }
 
-func New(store *Store, llm *LLM, inventory inventoryv1.InventoryServiceClient, nc *nats.Conn, an *analytics.Client) *Agent {
-	return &Agent{store: store, router: Router{llm: llm}, llm: llm, inventory: inventory, nc: nc, analytics: an}
+func New(store *Store, llm *LLM, rules Rules, lodging lodgingv1.LodgingServiceClient, catalog catalogv1.CatalogServiceClient,
+	nc *nats.Conn, an *analytics.Client) *Agent {
+	return &Agent{store: store, router: Router{llm: llm}, llm: llm, rules: rules, lodging: lodging, catalog: catalog, nc: nc, analytics: an}
 }
 
 // HandleTurn runs one turn. A returned error means the turn should be retried.
@@ -84,116 +97,144 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 		tracing.SessionID.String(msg.SessionID),
 		tracing.TraceTags.StringSlice([]string{mode}),
 		tracing.ObservationType.String("agent"),
-		tracing.Input.String(msg.Text),
+		tracing.Input.String(turnInput(msg)),
 	))
 	var reply string
 	defer func() { endSpan(span, reply, err) }()
 
+	ev := a.events(msg)
 	today := time.Now().UTC().Truncate(24 * time.Hour)
-	plan, err := a.store.LoadPlan(ctx, msg.SessionID)
+	p, err := a.store.LoadPlan(ctx, msg.SessionID)
 	if err != nil {
 		return fmt.Errorf("load plan: %w", err)
 	}
-	prevStage := plan.Stage
-	a.emit(msg.SessionID, platform.Event{Type: "status", Stage: plan.Stage, Text: "разбираю запрос"})
+	prevStage := p.Stage
+	ev.emit("status", platform.StatusData{Stage: p.Stage, Text: "разбираю запрос"})
 
-	invalidated := plan.Apply(a.router.Route(ctx, plan, msg.Text, today), today)
-	if plan.SearchGate() {
-		plan.FillDefaults(today)
-		if len(plan.Options) == 0 {
-			a.emit(msg.SessionID, platform.Event{Type: "status", Stage: StageSearch, Text: "ищу отели"})
-			if err := a.search(ctx, &plan); err != nil {
+	var patch plan.Patch
+	userText := msg.Text
+	if len(msg.Patch) > 0 {
+		// The gateway validated the patch against the schema; a broken one here is a bug, not a retry case.
+		dec := json.NewDecoder(bytes.NewReader(msg.Patch))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&patch); err != nil {
+			slog.Error("malformed plan patch, dropping the turn", "session_id", msg.SessionID, "err", err)
+			ev.emit("error", platform.ErrorData{Code: "bad_request", Message: "Не удалось применить правку плана."})
+			return nil
+		}
+		userText = "Правка плана: " + string(msg.Patch)
+	} else {
+		patch = a.router.Route(ctx, p, msg.Text, today)
+	}
+	changes := p.Apply(patch, today)
+
+	if p.SearchGate() {
+		p.FillDefaults(today)
+		if p.NeedsSearch(plan.Stay) {
+			ev.emit("status", platform.StatusData{Stage: plan.StageSearch, Text: "ищу отели"})
+			if err := a.searchStay(ctx, &p); err != nil {
 				return fmt.Errorf("search hotels: %w", err)
 			}
 		}
-		if plan.Weather == nil {
-			a.weather(ctx, &plan)
+		if p.Weather == nil {
+			a.weather(ctx, &p)
 		}
 	}
-	plan.NextStage()
-	a.emit(msg.SessionID, platform.Event{Type: "plan", Plan: plan})
+	p.NextStage()
+	ev.emit("plan", p)
+	if p.Stage == plan.StageClarify {
+		ev.emit("clarify", platform.ClarifyData{Question: "Куда хотите поехать?", QuickReplies: cityExamples})
+	}
 
-	span.SetAttributes(attribute.String("langfuse.observation.metadata.stage", plan.Stage))
-	reply, err = a.reply(ctx, plan, msg, invalidated)
+	span.SetAttributes(attribute.String("langfuse.observation.metadata.stage", p.Stage))
+	reply, err = a.reply(ctx, p, msg, userText, changes, ev)
 	if err != nil {
 		return fmt.Errorf("reply: %w", err)
 	}
 
-	if err := a.store.SaveTurn(ctx, &plan, msg.MessageID, msg.Text, reply); err != nil {
+	if err := a.store.SaveTurn(ctx, &p, msg.MessageID, userText, reply); err != nil {
 		if errors.Is(err, ErrAlreadyProcessed) {
 			return nil
 		}
 		return fmt.Errorf("save turn: %w", err)
 	}
-	a.emit(msg.SessionID, platform.Event{Type: "plan", Plan: plan})
-	a.emit(msg.SessionID, platform.Event{Type: "done", Stage: plan.Stage})
+	ev.emit("plan", p)
+	ev.emit("done", platform.DoneData{Text: reply, Stage: p.Stage})
 
-	if plan.Stage != prevStage {
-		a.analytics.Track("stage_entered", plan.SessionID, plan.Stage, map[string]any{"from": prevStage})
+	if p.Stage != prevStage {
+		a.analytics.Track("stage_entered", p.SessionID, p.Stage, map[string]any{"from": prevStage})
 	}
-	if len(invalidated) > 0 {
-		a.analytics.Track("plan_rebuilt", plan.SessionID, plan.Stage, map[string]any{"invalidated": invalidated})
+	if len(changes) > 0 {
+		a.analytics.Track("plan_rebuilt", p.SessionID, p.Stage, map[string]any{"invalidated": changes})
 	}
-	a.analytics.Track("turn_completed", plan.SessionID, plan.Stage, map[string]any{
-		"duration_ms": time.Since(started).Milliseconds(), "options": len(plan.Options), "llm": a.llm != nil,
+	a.analytics.Track("turn_completed", p.SessionID, p.Stage, map[string]any{
+		"duration_ms": time.Since(started).Milliseconds(), "options": len(p.Components.Stay.Options), "llm": a.llm != nil,
+		"patch": len(msg.Patch) > 0,
 	})
 	return nil
 }
 
-// EmitError tells the user that a turn failed for good.
-func (a *Agent) EmitError(sessionID, message string) {
-	a.emit(sessionID, platform.Event{Type: "error", Message: message})
+func turnInput(msg platform.TurnMessage) string {
+	if len(msg.Patch) > 0 {
+		return string(msg.Patch)
+	}
+	return msg.Text
 }
 
-func (a *Agent) search(ctx context.Context, plan *TripPlan) (err error) {
-	c := plan.Constraints
-	req := &inventoryv1.SearchHotelsRequest{
-		City: c.Destination,
-		Stay: &inventoryv1.Stay{CheckIn: c.CheckIn, Nights: c.Nights, Adults: c.Adults, Children: c.Children, WithPets: c.Pets},
-	}
-	ctx, span := startSpan(ctx, "inventory.SearchHotels", "tool", req)
-	defer func() { endSpan(span, plan.Options, err) }()
+// EmitError tells the user that a turn failed for good.
+func (a *Agent) EmitError(msg platform.TurnMessage, message string) {
+	a.events(msg).emit("error", platform.ErrorData{Code: "internal", Message: message})
+}
+
+func (a *Agent) searchStay(ctx context.Context, p *plan.TripPlan) (err error) {
+	c := p.Constraints
+	req := &lodgingv1.SearchHotelsRequest{City: c.Destination, Stay: c.StayProto(), Filters: &lodgingv1.Filters{
+		Meal: c.Preferences.Meal, FreeCancellationOnly: c.Preferences.FreeCancellation != nil && *c.Preferences.FreeCancellation,
+	}}
+	ctx, span := startSpan(ctx, "lodging.SearchHotels", "tool", req)
+	defer func() { endSpan(span, p.Components.Stay.Options, err) }()
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	resp, err := a.inventory.SearchHotels(ctx, req)
+	resp, err := a.lodging.SearchHotels(ctx, req)
 	if err != nil {
 		return err
 	}
-	plan.SetOptions(resp.GetHotels())
+	options := make([]plan.Option, 0, len(resp.GetHotels()))
+	for _, h := range resp.GetHotels() {
+		options = append(options, plan.StayOption(h))
+	}
+	p.SetOptions(plan.Stay, options)
 	return nil
 }
 
 // weather is best effort: a missing forecast never blocks the turn.
-func (a *Agent) weather(ctx context.Context, plan *TripPlan) {
-	req := &inventoryv1.GetWeatherRequest{City: plan.Constraints.Destination, Date: plan.Constraints.CheckIn}
-	ctx, span := startSpan(ctx, "inventory.GetWeather", "tool", req)
+func (a *Agent) weather(ctx context.Context, p *plan.TripPlan) {
+	req := &catalogv1.GetWeatherRequest{City: p.Constraints.Destination, Date: p.Constraints.Dates.Depart}
+	ctx, span := startSpan(ctx, "catalog.GetWeather", "tool", req)
 	ctx, cancel := context.WithTimeout(ctx, 6*time.Second)
 	defer cancel()
-	w, err := a.inventory.GetWeather(ctx, req)
+	w, err := a.catalog.GetWeather(ctx, req)
 	endSpan(span, w, err)
 	if err != nil {
-		slog.Warn("weather unavailable", "city", plan.Constraints.Destination, "err", err)
+		slog.Warn("weather unavailable", "city", p.Constraints.Destination, "err", err)
 		return
 	}
-	plan.Weather = &Weather{
-		City: w.GetCity(), Date: plan.Constraints.CheckIn, TempMaxC: w.GetTempMaxC(), TempMinC: w.GetTempMinC(),
-		PrecipitationMM: w.GetPrecipitationMm(), Source: w.GetSource(),
-	}
+	p.Weather = plan.WeatherFromProto(w)
 }
 
-func (a *Agent) reply(ctx context.Context, plan TripPlan, msg platform.TurnMessage, invalidated []string) (string, error) {
-	onToken := func(t string) { a.emit(msg.SessionID, platform.Event{Type: "token", Text: t}) }
+func (a *Agent) reply(ctx context.Context, p plan.TripPlan, msg platform.TurnMessage, userText string, changes []string, ev *events) (string, error) {
+	onToken := func(t string) { ev.emit("token", platform.TokenData{Text: t}) }
 
 	if a.llm != nil {
 		history, err := a.store.History(ctx, msg.SessionID, historyLimit)
 		if err != nil {
 			return "", err
 		}
-		planJSON, _ := json.Marshal(plan)
+		planJSON, _ := json.Marshal(p)
 		system := replyPrompt + "\n\nПлан поездки: " + string(planJSON)
-		if len(invalidated) > 0 {
-			system += "\nЧто изменилось в этом ходе: " + strings.Join(invalidated, "; ")
+		if len(changes) > 0 {
+			system += "\nЧто изменилось в этом ходе: " + strings.Join(changes, "; ")
 		}
 		messages := []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(system)}
 		for _, m := range history {
@@ -203,7 +244,7 @@ func (a *Agent) reply(ctx context.Context, plan TripPlan, msg platform.TurnMessa
 				messages = append(messages, openai.UserMessage(m.Content))
 			}
 		}
-		messages = append(messages, openai.UserMessage(msg.Text))
+		messages = append(messages, openai.UserMessage(userText))
 
 		ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 		defer cancel()
@@ -214,8 +255,8 @@ func (a *Agent) reply(ctx context.Context, plan TripPlan, msg platform.TurnMessa
 		slog.Warn("llm reply failed, falling back to template", "err", err)
 	}
 
-	_, span := startSpan(ctx, "reply-template", "span", plan)
-	text := templateReply(plan, invalidated)
+	_, span := startSpan(ctx, "reply-template", "span", p)
+	text := templateReply(p, changes)
 	endSpan(span, text, nil)
 	for _, word := range strings.SplitAfter(text, " ") {
 		onToken(word)
@@ -223,64 +264,101 @@ func (a *Agent) reply(ctx context.Context, plan TripPlan, msg platform.TurnMessa
 	return text, nil
 }
 
+var mealNames = map[string]string{
+	"room_only": "без питания", "breakfast": "завтрак", "half_board": "завтрак и ужин", "all_inclusive": "всё включено",
+}
+
 // templateReply answers without an LLM, from the plan alone.
-func templateReply(plan TripPlan, invalidated []string) string {
-	if !plan.SearchGate() {
+func templateReply(p plan.TripPlan, changes []string) string {
+	if !p.SearchGate() {
 		return "Куда хотите поехать? Назовите город, а даты и состав гостей я предположу сам и покажу, что можно поправить."
 	}
-	c := plan.Constraints
+	c := p.Constraints
 	var b strings.Builder
-	for _, s := range invalidated {
+	for _, s := range changes {
 		fmt.Fprintf(&b, "Учла изменение: %s.\n", s)
 	}
-	fmt.Fprintf(&b, "%s, заезд %s, %d ноч., взрослых: %d", c.Destination, c.CheckIn, c.Nights, c.Adults)
-	if c.Children > 0 {
-		fmt.Fprintf(&b, ", детей: %d", c.Children)
+	fmt.Fprintf(&b, "%s, %s – %s, %d ноч., взрослых: %d", c.Destination, c.Dates.Depart, c.Dates.Return, c.Dates.Nights, c.Adults)
+	if len(c.ChildAges) > 0 {
+		fmt.Fprintf(&b, ", детей: %d", len(c.ChildAges))
 	}
 	if c.Pets {
 		b.WriteString(", с питомцем")
 	}
 	b.WriteString(".\n")
-	if w := plan.Weather; w != nil {
+	if w := p.Weather; w != nil {
 		label := "прогноз"
-		if w.Source == "last_year" {
-			label = "в этот день год назад"
+		if w.Kind == "climate_normal" {
+			label = "по прошлым годам"
 		}
 		fmt.Fprintf(&b, "Погода (%s): от %.0f до %.0f °C, осадки %.1f мм.\n", label, w.TempMinC, w.TempMaxC, w.PrecipitationMM)
 	}
-	if len(plan.Options) == 0 {
+	stay := p.Components.Stay
+	if len(stay.Options) == 0 {
 		b.WriteString("Подходящих отелей не нашла. Попробуйте изменить даты или условия.")
 		return b.String()
 	}
-	b.WriteString("Лучшие варианты:\n")
-	for i, o := range plan.Options[:min(3, len(plan.Options))] {
-		fmt.Fprintf(&b, "%d. %s, %d★, рейтинг %.1f, %s, %d ₽ за всё", i+1, o.Name, o.Stars, o.Rating, o.Meal, o.TotalPriceRub)
-		if o.FreeCancellation {
-			b.WriteString(", бесплатная отмена")
-		} else {
-			b.WriteString(", без бесплатной отмены (риск)")
+	if sel := stay.Selected(); sel != nil {
+		fmt.Fprintf(&b, "Выбран %s, итого %d ₽. Можно оформлять.\n", sel.Stay.Name, p.TotalRub)
+	} else {
+		b.WriteString("Лучшие варианты:\n")
+		for i, o := range stay.Options[:min(3, len(stay.Options))] {
+			h := o.Stay
+			fmt.Fprintf(&b, "%d. %s, %d★, рейтинг %.1f, %s, %d ₽ за всё", i+1, h.Name, h.Stars, h.Rating, mealNames[h.Meal], o.PriceRub)
+			if h.FreeCancellation {
+				b.WriteString(", бесплатная отмена")
+			} else {
+				b.WriteString(", без бесплатной отмены (риск)")
+			}
+			if slices.Contains(o.Flags, plan.FlagOverBudget) {
+				b.WriteString(", выше бюджета")
+			}
+			b.WriteString(".\n")
 		}
-		if o.OverBudget {
-			b.WriteString(", выше бюджета")
-		}
-		b.WriteString(".\n")
 	}
-	for _, a := range plan.Assumptions {
+	for _, a := range p.Assumptions {
 		fmt.Fprintf(&b, "Допущение: %s = %s (%s). Можно поправить.\n", a.Field, a.Value, a.Reason)
 	}
-	for _, cf := range plan.Conflicts {
+	for _, cf := range p.Conflicts {
 		fmt.Fprintf(&b, "Внимание: %s.\n", cf.Message)
 	}
 	b.WriteString("Данные об отелях синтетические.")
 	return b.String()
 }
 
-func (a *Agent) emit(sessionID string, ev platform.Event) {
-	data, err := json.Marshal(ev)
+// lastSeq makes seq grow within a session: it is a timestamp in microseconds,
+// bumped when two events fall into the same microsecond.
+// impulse: seq is unique per agent process, store a per-session counter in NATS KV when turns of one session run on several agent replicas.
+var lastSeq atomic.Int64
+
+func nextSeq() int64 {
+	for {
+		now, last := time.Now().UnixMicro(), lastSeq.Load()
+		next := max(now, last+1)
+		if lastSeq.CompareAndSwap(last, next) {
+			return next
+		}
+	}
+}
+
+// events publishes the events of one turn.
+type events struct {
+	nc        *nats.Conn
+	sessionID string
+	turnID    string
+}
+
+func (a *Agent) events(msg platform.TurnMessage) *events {
+	return &events{nc: a.nc, sessionID: msg.SessionID, turnID: msg.MessageID}
+}
+
+func (e *events) emit(typ string, data any) {
+	raw, err := json.Marshal(platform.Event{Type: typ, SessionID: e.sessionID, TurnID: e.turnID, Seq: nextSeq(), Data: data})
 	if err != nil {
+		slog.Error("marshal event failed", "type", typ, "err", err)
 		return
 	}
-	if err := a.nc.Publish(platform.SessionEventsSubject(sessionID), data); err != nil {
-		slog.Warn("publish event failed", "session_id", sessionID, "err", err)
+	if err := e.nc.Publish(platform.SessionEventsSubject(e.sessionID), raw); err != nil {
+		slog.Warn("publish event failed", "session_id", e.sessionID, "err", err)
 	}
 }

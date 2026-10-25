@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package lodging.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "horkilion/gen/lodging/v1;lodgingv1";
+
+// LodgingService searches hotels and prices offers.
+service LodgingService {
+  rpc SearchHotels(SearchHotelsRequest) returns (SearchHotelsResponse);
+  // GetOffer re-prices one hotel for the stay. For the same input it returns the
+  // same price as SearchHotels; booking relies on that to catch price changes.
+  rpc GetOffer(GetOfferRequest) returns (Hotel);
+}
+
+message Stay {
+  // Check-in date in YYYY-MM-DD.
+  string check_in = 1;
+  int32 nights = 2;
+  common.v1.Travelers travelers = 3;
+}
+
+message Filters {
+  bool free_cancellation_only = 1;
+  // "breakfast", "half_board", "all_inclusive"; empty for any.
+  string meal = 2;
+  int32 min_stars = 3;
+  // 0 for no limit.
+  int64 max_total_rub = 4;
+}
+
+message SearchHotelsRequest {
+  string city = 1;
+  Stay stay = 2;
+  Filters filters = 3;
+}
+
+message SearchHotelsResponse {
+  repeated Hotel hotels = 1;
+}
+
+message GetOfferRequest {
+  string hotel_id = 1;
+  Stay stay = 2;
+}
+
+message Hotel {
+  string id = 1;
+  string name = 2;
+  string city = 3;
+  common.v1.Place place = 4;
+  int32 stars = 5;
+  double rating = 6;
+  // "room_only", "breakfast", "half_board", "all_inclusive".
+  string meal = 7;
+  bool free_cancellation = 8;
+  // Cancellation terms as shown to the guest.
+  string cancellation_policy = 9;
+  bool pets_allowed = 10;
+  // Local time "HH:MM".
+  string check_in_time = 11;
+  string check_out_time = 12;
+  int64 price_per_night_rub = 13;
+  int64 total_price_rub = 14;
+  double distance_to_center_km = 15;
+  repeated common.v1.Source sources = 16;
+}

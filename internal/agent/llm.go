@@ -2,7 +2,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/openai/openai-go/v3"
@@ -11,11 +14,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"horkilion/internal/platform"
 	"horkilion/internal/tracing"
 )
 
-// LLM talks to OpenRouter (or any OpenAI-compatible endpoint, such as a
-// self-hosted vLLM) through the official client. A nil *LLM means no API key is
+// LLM talks to any OpenAI-compatible endpoint (OpenRouter by default, a
+// self-hosted vLLM, a corporate gateway) through the official client. A nil *LLM means no API key is
 // configured and the agent runs on rules and templates.
 type LLM struct {
 	client      openai.Client
@@ -28,6 +32,29 @@ type LLMConfig struct {
 	BaseURL     string
 	Model       string
 	RouterModel string
+	// ExtraBody is merged into every request body, e.g. OpenRouter provider routing.
+	ExtraBody map[string]any
+}
+
+const defaultExtraBody = `{"provider":{"data_collection":"deny"}}`
+
+// LLMConfigFromEnv reads LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_ROUTER_MODEL
+// and LLM_EXTRA_BODY. OPENROUTER_API_KEY is still read as a fallback key name.
+func LLMConfigFromEnv() (LLMConfig, error) {
+	cfg := LLMConfig{
+		APIKey:      os.Getenv("LLM_API_KEY"),
+		BaseURL:     platform.Env("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+		Model:       platform.Env("LLM_MODEL", "deepseek/deepseek-v4.1-flash"),
+		RouterModel: platform.Env("LLM_ROUTER_MODEL", "qwen/qwen3.8-27b"),
+	}
+	if cfg.APIKey == "" {
+		// impulse: old key name kept for running deployments, drop it after phase 1 once every .env uses LLM_API_KEY.
+		cfg.APIKey = os.Getenv("OPENROUTER_API_KEY")
+	}
+	if err := json.Unmarshal([]byte(platform.Env("LLM_EXTRA_BODY", defaultExtraBody)), &cfg.ExtraBody); err != nil {
+		return LLMConfig{}, fmt.Errorf("LLM_EXTRA_BODY must be a JSON object: %w", err)
+	}
+	return cfg, nil
 }
 
 // NewLLM returns nil when no API key is set.
@@ -35,14 +62,17 @@ func NewLLM(cfg LLMConfig) *LLM {
 	if cfg.APIKey == "" {
 		return nil
 	}
-	client := openai.NewClient(
+	opts := []option.RequestOption{
 		option.WithAPIKey(cfg.APIKey),
 		option.WithBaseURL(cfg.BaseURL),
-		option.WithRequestTimeout(60*time.Second),
+		option.WithRequestTimeout(60 * time.Second),
 		option.WithMaxRetries(2),
-		// OpenRouter provider routing: providers must not store prompts.
-		option.WithJSONSet("provider", map[string]any{"data_collection": "deny"}),
-	)
+	}
+	// By default OpenRouter provider routing that forbids storing prompts.
+	for k, v := range cfg.ExtraBody {
+		opts = append(opts, option.WithJSONSet(k, v))
+	}
+	client := openai.NewClient(opts...)
 	return &LLM{client: client, model: cfg.Model, routerModel: cfg.RouterModel}
 }
 

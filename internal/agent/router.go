@@ -10,55 +10,96 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"horkilion/internal/agent/plan"
 )
 
 const routerPrompt = `Ты разбираешь сообщение путешественника и возвращаешь только JSON без пояснений.
 Поля (null, если в сообщении этого нет):
-{"destination": город назначения в именительном падеже, "check_in": дата заезда YYYY-MM-DD,
- "nights": число ночей, "adults": число взрослых, "children": число детей,
- "pets": true если едут с животным, "budget_rub": бюджет на проживание в рублях}
-Сегодня %s. Текущий план: %s`
+{"origin": город отправления в именительном падеже, "destination": город назначения в именительном падеже,
+ "depart": дата отъезда YYYY-MM-DD, "nights": число ночей, "adults": число взрослых,
+ "children": число детей, "child_ages": массив возрастов детей, если они названы,
+ "pets": true если едут с животным, "budget_rub": бюджет на всю поездку в рублях}
+Сегодня %s. Текущие условия: %s`
 
-// Router turns a user message into a Patch: with the light LLM when it is
+// Router turns a user message into a plan patch: with the light LLM when it is
 // configured, with rules otherwise or when the LLM fails.
 type Router struct {
 	llm *LLM
 }
 
-func (r Router) Route(ctx context.Context, plan TripPlan, text string, today time.Time) (patch Patch) {
+// routed is what the router extracts from a message, before it becomes a patch.
+type routed struct {
+	Origin      *string `json:"origin"`
+	Destination *string `json:"destination"`
+	Depart      *string `json:"depart"`
+	Nights      *int32  `json:"nights"`
+	Adults      *int32  `json:"adults"`
+	Children    *int32  `json:"children"`
+	ChildAges   []int32 `json:"child_ages"`
+	Pets        *bool   `json:"pets"`
+	BudgetRub   *int64  `json:"budget_rub"`
+}
+
+func (r Router) Route(ctx context.Context, p plan.TripPlan, text string, today time.Time) (patch plan.Patch) {
 	ctx, span := startSpan(ctx, "router", "chain", text)
 	defer func() { endSpan(span, patch, nil) }()
 
 	if r.llm != nil {
-		patch, err := r.routeLLM(ctx, plan, text, today)
+		out, err := r.routeLLM(ctx, p, text, today)
 		if err == nil {
-			return patch
+			return out.patch()
 		}
 		slog.Warn("llm router failed, falling back to rules", "err", err)
 	}
 	_, rules := startSpan(ctx, "router-rules", "span", text)
-	patch = routeRules(plan, text, today)
-	endSpan(rules, patch, nil)
-	return patch
+	out := routeRules(p, text, today)
+	endSpan(rules, out, nil)
+	return out.patch()
 }
 
-func (r Router) routeLLM(ctx context.Context, plan TripPlan, text string, today time.Time) (Patch, error) {
-	constraints, _ := json.Marshal(plan.Constraints)
+func (r Router) routeLLM(ctx context.Context, p plan.TripPlan, text string, today time.Time) (routed, error) {
+	constraints, _ := json.Marshal(p.Constraints)
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	out, err := r.llm.Complete(ctx, fmt.Sprintf(routerPrompt, today.Format(time.DateOnly), constraints), text)
 	if err != nil {
-		return Patch{}, err
+		return routed{}, err
 	}
 	start, end := strings.Index(out, "{"), strings.LastIndex(out, "}")
 	if start < 0 || end <= start {
-		return Patch{}, errors.New("router returned no JSON object")
+		return routed{}, errors.New("router returned no JSON object")
 	}
-	var patch Patch
-	if err := json.Unmarshal([]byte(out[start:end+1]), &patch); err != nil {
-		return Patch{}, fmt.Errorf("parse router JSON: %w", err)
+	var res routed
+	if err := json.Unmarshal([]byte(out[start:end+1]), &res); err != nil {
+		return routed{}, fmt.Errorf("parse router JSON: %w", err)
 	}
-	return patch, nil
+	return res, nil
+}
+
+// patch converts the router output into a plan patch. Children without named
+// ages get the default age, which Apply shows as an assumption.
+func (r routed) patch() plan.Patch {
+	p := plan.Patch{Origin: r.Origin, Destination: r.Destination, Adults: r.Adults, Pets: r.Pets}
+	if r.Depart != nil || r.Nights != nil {
+		p.Dates = &plan.DatesPatch{Depart: r.Depart, Nights: r.Nights}
+	}
+	switch {
+	case len(r.ChildAges) > 0:
+		ages := r.ChildAges
+		p.ChildAges = &ages
+	case r.Children != nil && *r.Children >= 0 && *r.Children <= 10:
+		ages := make([]int32, *r.Children)
+		for i := range ages {
+			ages[i] = plan.DefaultChildAge
+		}
+		p.ChildAges = &ages
+		p.ChildAgesAssumed = true
+	}
+	if r.BudgetRub != nil && *r.BudgetRub > 0 {
+		p.Budget = &plan.Budget{AmountRub: *r.BudgetRub}
+	}
+	return p
 }
 
 var (
@@ -79,14 +120,14 @@ var (
 
 // routeRules is the fallback router: enough for a demo without an API key.
 // impulse: regex router without morphology ("в Москву" stays accusative), use the LLM router in any real demo.
-func routeRules(plan TripPlan, text string, today time.Time) Patch {
-	var p Patch
+func routeRules(cur plan.TripPlan, text string, today time.Time) routed {
+	var p routed
 	lower := strings.ToLower(text)
 	trimmed := strings.TrimSpace(text)
 
 	if m := reCity.FindStringSubmatch(text); m != nil {
 		p.Destination = ptr(m[1])
-	} else if plan.Constraints.Destination == "" && reBareCity.MatchString(trimmed) {
+	} else if cur.Constraints.Destination == "" && reBareCity.MatchString(trimmed) {
 		p.Destination = ptr(trimmed)
 	}
 	if m := reNights.FindStringSubmatch(lower); m != nil {
@@ -115,14 +156,14 @@ func routeRules(plan TripPlan, text string, today time.Time) Patch {
 		}
 	}
 	if m := reISODate.FindStringSubmatch(text); m != nil {
-		p.CheckIn = ptr(m[1])
+		p.Depart = ptr(m[1])
 	} else if m := reDayMonth.FindStringSubmatch(text); m != nil {
 		d, err := time.Parse("2.1.2006", fmt.Sprintf("%s.%s.%d", m[1], m[2], today.Year()))
 		if err == nil {
 			if d.Before(today) {
 				d = d.AddDate(1, 0, 0)
 			}
-			p.CheckIn = ptr(d.Format(time.DateOnly))
+			p.Depart = ptr(d.Format(time.DateOnly))
 		}
 	}
 	return p
