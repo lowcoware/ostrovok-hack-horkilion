@@ -65,7 +65,9 @@ func (offlineCatalog) GetWeather(context.Context, *catalogv1.GetWeatherRequest) 
 // say routes a message by rules and runs the turn the way HandleTurn does.
 func say(t *testing.T, a *Agent, p *plan.TripPlan, text string) {
 	t.Helper()
-	p.Apply(routeRules(*p, text, today).patch(), today)
+	patch := routeRules(*p, text, today).patch()
+	a.resolvePlaces(context.Background(), &patch)
+	p.Apply(patch, today)
 	if err := a.advance(context.Background(), p, &events{}, today); err != nil {
 		t.Fatal(err)
 	}

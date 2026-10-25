@@ -40,7 +40,17 @@ type Patch struct {
 	// ChildAgesAssumed means the router knew the number of children but not
 	// their ages; Apply records the ages as an assumption.
 	ChildAgesAssumed bool `json:"-"`
+	// Assumed maps a field the router filled by interpretation, not from an
+	// explicit value («в ноябре», «без долгих перелётов»), to the reason; Apply
+	// records it as an assumption when the value is applied.
+	Assumed map[string]string `json:"-"`
 }
+
+// Fields the router may fill by interpretation.
+const (
+	FieldDepart         = "dates.depart"
+	FieldMaxTravelHours = "preferences.max_travel_hours"
+)
 
 type DatesPatch struct {
 	Depart   *string `json:"depart,omitempty"`
@@ -239,6 +249,18 @@ func (p *TripPlan) Apply(patch Patch, today time.Time) []string {
 	if s := patch.Select; s != nil {
 		changes = append(changes, p.selectOption(*s)...)
 	}
+	for field, reason := range patch.Assumed {
+		switch field {
+		case FieldDepart:
+			if d := patch.Dates; d != nil && d.Depart != nil && c.Dates.Depart == *d.Depart {
+				p.addAssumption(field, c.Dates.Depart, reason)
+			}
+		case FieldMaxTravelHours:
+			if pr := patch.Preferences; pr != nil && pr.MaxTravelHours != nil && c.Preferences.MaxTravelHours == *pr.MaxTravelHours {
+				p.addAssumption(field, fmt.Sprint(c.Preferences.MaxTravelHours), reason)
+			}
+		}
+	}
 	p.recompute()
 	return changes
 }
@@ -321,6 +343,7 @@ func (p *TripPlan) applyPreferences(pr PreferencesPatch) []string {
 	}
 	if v := pr.MaxTravelHours; v != nil && *v >= 0 && *v != prefs.MaxTravelHours {
 		prefs.MaxTravelHours = *v
+		p.dropAssumption(FieldMaxTravelHours)
 		changes = append(changes, p.markStale("допустимое время в пути изменилось", journeyStale)...)
 	}
 	if v := pr.Moods; v != nil {

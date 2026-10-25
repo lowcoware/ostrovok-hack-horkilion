@@ -138,6 +138,7 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 		userText = "Правка плана: " + string(msg.Patch)
 	} else {
 		patch = a.router.Route(ctx, p, msg.Text, today)
+		a.resolvePlaces(ctx, &patch)
 	}
 	changes := p.Apply(patch, today)
 
