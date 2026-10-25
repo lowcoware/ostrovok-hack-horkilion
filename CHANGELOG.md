@@ -72,7 +72,13 @@
   подключение»; единственная межролевая блокирующая — `P1-FE-01.1–01.2` ждут `P1-BE-01`), `docs/phase1/backend.md`
   (`P1-BE-01…13`), `docs/phase1/data.md` (`P1-DS-01…08`), `docs/phase1/frontend.md` (`P1-FE-01…11`); спека 0003
   ссылается на эти файлы вместо своего списка задач; попало в `main` через PR #3. (`12ebf46`)
-
+- Контракт виз и гражданства (`P1-BE-01`): у направлений и в плане видно, нужна ли виза, по гражданству
+  путешественника. Технически: OpenAPI — `VisaStatus`, `VisaRequirement`, `Country`, `Constraints.citizenship`,
+  `Preferences.visa_free_only` (по умолчанию `true`), `PlanPatch.citizenship`, `Destination.visa`, `TripPlan.visa`,
+  проверки `visa` и `stay_within_visa_free_days`, эндпоинты `GET /countries` и `GET /places`; `catalog.v1` —
+  RPC `GetVisaRequirement`, `ListCountries`, `SearchPlaces`, поля 11 и 12 в `SearchDestinationsRequest`,
+  поле 9 `russia_and_visa_free_only` зарезервировано; в плане гражданство по умолчанию `RU` допущением, смена
+  гражданства сбрасывает варианты направлений и визу, отели не трогает. (`406708b`)
 ### Изменено
 
 - План проекта перестроен под три роли и новую географию. Технически: `docs/roadmap.md` и `docs/spec.md` —
