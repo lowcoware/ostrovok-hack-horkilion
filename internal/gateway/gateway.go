@@ -1,5 +1,5 @@
-// Package gateway is the HTTP and SSE entry point for the web frontend and,
-// later, the Telegram bot.
+// Package gateway is the HTTP and SSE entry point for the web frontend and
+// any other client of the agent API.
 package gateway
 
 import (

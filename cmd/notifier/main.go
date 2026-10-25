@@ -67,7 +67,7 @@ func run() error {
 			_ = msg.Term()
 			return
 		}
-		// impulse: notifications are logged only, send through the Telegram bot when it lands.
+		// impulse: notifications are logged only, show them on the site when post-purchase lands.
 		slog.Info("notification: booking confirmed",
 			"order_id", ev.ID, "session_id", ev.SessionID, "hotel", ev.HotelName,
 			"check_in", ev.CheckIn, "total_rub", ev.TotalPriceRub)
