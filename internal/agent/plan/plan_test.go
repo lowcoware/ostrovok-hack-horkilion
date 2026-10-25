@@ -49,11 +49,11 @@ func TestFillDefaultsRecordsAssumptions(t *testing.T) {
 	if d.Depart != "2026-11-07" || d.Nights != 3 || d.Return != "2026-11-10" || p.Constraints.Adults != 2 {
 		t.Fatalf("defaults are wrong: %+v adults=%d", d, p.Constraints.Adults)
 	}
-	if len(p.Assumptions) != 4 {
-		t.Fatalf("want 4 assumptions (citizenship, depart, nights, adults), got %+v", p.Assumptions)
+	if len(p.Assumptions) != 5 {
+		t.Fatalf("want 5 assumptions (origin, citizenship, depart, nights, adults), got %+v", p.Assumptions)
 	}
 	p.Apply(Patch{Dates: &DatesPatch{Nights: ptr(int32(5))}}, today)
-	if p.Constraints.Dates.Return != "2026-11-12" || len(p.Assumptions) != 3 {
+	if p.Constraints.Dates.Return != "2026-11-12" || len(p.Assumptions) != 4 {
 		t.Errorf("explicit nights must update return and drop the assumption: %+v %+v", p.Constraints.Dates, p.Assumptions)
 	}
 }

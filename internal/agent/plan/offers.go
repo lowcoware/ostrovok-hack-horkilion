@@ -228,6 +228,18 @@ func StayOption(h *lodgingv1.Hotel) Option {
 	return Option{ID: hotel.ID, Kind: KindStay, PriceRub: hotel.TotalPriceRub, Stay: hotel, Flags: []string{}, Sources: hotel.Sources}
 }
 
+// JourneyOption wraps a journey offer into an outbound or return option.
+func JourneyOption(j *transportv1.Journey) Option {
+	journey := JourneyFromProto(j)
+	return Option{ID: journey.ID, Kind: KindJourney, PriceRub: journey.PriceRub, Journey: journey, Flags: []string{}, Sources: journey.Sources}
+}
+
+// TransferOption wraps a transfer offer into a transfer option.
+func TransferOption(t *transferv1.Transfer) Option {
+	transfer := TransferFromProto(t)
+	return Option{ID: transfer.ID, Kind: KindTransfer, PriceRub: transfer.PriceRub, Transfer: transfer, Flags: []string{}, Sources: transfer.Sources}
+}
+
 // TravelersProto returns the party of the plan in supplier terms.
 func (c Constraints) TravelersProto() *commonv1.Travelers {
 	return &commonv1.Travelers{Adults: c.Adults, ChildAges: c.ChildAges, Pets: c.Pets}

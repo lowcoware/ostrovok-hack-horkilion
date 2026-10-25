@@ -24,6 +24,8 @@ import (
 
 	catalogv1 "horkilion/gen/catalog/v1"
 	lodgingv1 "horkilion/gen/lodging/v1"
+	transferv1 "horkilion/gen/transfer/v1"
+	transportv1 "horkilion/gen/transport/v1"
 	"horkilion/internal/agent/plan"
 	"horkilion/internal/analytics"
 	"horkilion/internal/platform"
@@ -34,7 +36,8 @@ const replyPrompt = `Ты агент Островка по планирован�
 Решения принимай только по плану поездки (JSON ниже). Не выдумывай отели, цены и погоду, которых нет в плане.
 Если направления нет, задай один вопрос: куда ехать.
 Варианты отелей лежат в components.stay.options. Предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски.
-Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts и о вариантах с флагом over_budget.
+Дорога туда и обратно лежит в components.outbound и components.return, трансферы — в components.transfer_arrival и components.transfer_departure. Пока пользователь не выбрал, поездка собрана из первого варианта каждого компонента: назови его и скажи, что можно выбрать другой.
+Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts, о каждой проверке из checks со статусом warn или fail (в том числе о визе) и о вариантах с флагом over_budget.
 Если у данных в sources есть kind "synthetic", одной фразой скажи, что это синтетические данные. Чтобы оформить поездку, пользователь выбирает отель и нажимает «Оформить».`
 
 const historyLimit = 10
@@ -61,13 +64,23 @@ type Agent struct {
 	rules     Rules
 	lodging   lodgingv1.LodgingServiceClient
 	catalog   catalogv1.CatalogServiceClient
+	transport transportv1.TransportServiceClient
+	transfer  transferv1.TransferServiceClient
 	nc        *nats.Conn
 	analytics *analytics.Client
 }
 
-func New(store *Store, llm *LLM, rules Rules, lodging lodgingv1.LodgingServiceClient, catalog catalogv1.CatalogServiceClient,
-	nc *nats.Conn, an *analytics.Client) *Agent {
-	return &Agent{store: store, router: Router{llm: llm}, llm: llm, rules: rules, lodging: lodging, catalog: catalog, nc: nc, analytics: an}
+// Suppliers are the inventory clients the agent calls.
+type Suppliers struct {
+	Lodging   lodgingv1.LodgingServiceClient
+	Catalog   catalogv1.CatalogServiceClient
+	Transport transportv1.TransportServiceClient
+	Transfer  transferv1.TransferServiceClient
+}
+
+func New(store *Store, llm *LLM, rules Rules, s Suppliers, nc *nats.Conn, an *analytics.Client) *Agent {
+	return &Agent{store: store, router: Router{llm: llm}, llm: llm, rules: rules, lodging: s.Lodging, catalog: s.Catalog,
+		transport: s.Transport, transfer: s.Transfer, nc: nc, analytics: an}
 }
 
 // HandleTurn runs one turn. A returned error means the turn should be retried.
@@ -130,11 +143,8 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 
 	if p.SearchGate() {
 		p.FillDefaults(today)
-		if p.NeedsSearch(plan.Stay) {
-			ev.emit("status", platform.StatusData{Stage: plan.StageSearch, Text: "ищу отели"})
-			if err := a.searchStay(ctx, &p); err != nil {
-				return fmt.Errorf("search hotels: %w", err)
-			}
+		if err := a.assemble(ctx, &p, ev); err != nil {
+			return fmt.Errorf("search hotels: %w", err)
 		}
 		if p.Weather == nil {
 			a.weather(ctx, &p)
@@ -268,6 +278,10 @@ var mealNames = map[string]string{
 	"room_only": "без питания", "breakfast": "завтрак", "half_board": "завтрак и ужин", "all_inclusive": "всё включено",
 }
 
+var componentLabels = map[string]string{
+	plan.Outbound: "Туда", plan.TransferArrival: "Трансфер до отеля", plan.TransferDeparture: "Трансфер к отправлению", plan.Return: "Обратно",
+}
+
 // templateReply answers without an LLM, from the plan alone.
 func templateReply(p plan.TripPlan, changes []string) string {
 	if !p.SearchGate() {
@@ -316,13 +330,23 @@ func templateReply(p plan.TripPlan, changes []string) string {
 			b.WriteString(".\n")
 		}
 	}
+	for _, name := range []string{plan.Outbound, plan.TransferArrival, plan.TransferDeparture, plan.Return} {
+		if o := p.Components.Get(name).Effective(); o != nil {
+			fmt.Fprintf(&b, "%s: %s, %d ₽.\n", componentLabels[name], plan.OptionTitle(*o), o.PriceRub)
+		}
+	}
+	for _, c := range p.Checks {
+		if c.Status != "ok" {
+			fmt.Fprintf(&b, "Проверка: %s\n", c.Message)
+		}
+	}
 	for _, a := range p.Assumptions {
 		fmt.Fprintf(&b, "Допущение: %s = %s (%s). Можно поправить.\n", a.Field, a.Value, a.Reason)
 	}
 	for _, cf := range p.Conflicts {
 		fmt.Fprintf(&b, "Внимание: %s.\n", cf.Message)
 	}
-	b.WriteString("Данные об отелях синтетические.")
+	b.WriteString("Цены и расписания синтетические.")
 	return b.String()
 }
 

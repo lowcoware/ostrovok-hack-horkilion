@@ -18,6 +18,8 @@ const (
 	DefaultChildAge = 7
 	// DefaultCitizenship is assumed until the traveller names another passport.
 	DefaultCitizenship = "RU"
+	// DefaultOrigin is assumed until the traveller names the departure city.
+	DefaultOrigin = "Москва"
 )
 
 // Patch changes the plan. Text messages (through the router) and manual edits
@@ -158,12 +160,19 @@ func (p Patch) Validate() error {
 //	citizenship        -> destination options, visa and visa checks; hotels and transport stay
 //	visa_free_only     -> destination options
 //	nights             -> the visa-free stay check is recomputed (spec 0002)
+//	select outbound    -> transfer_arrival
+//	select stay        -> transfer_arrival, transfer_departure
+//	select return      -> transfer_departure
 var (
 	allComponents   = ComponentNames
 	transportStale  = []string{Outbound, Return, TransferArrival, TransferDeparture}
 	petsStale       = []string{Stay, TransferArrival, TransferDeparture}
 	journeyStale    = []string{Outbound, Return}
 	preferenceStale = []string{Stay}
+	// Transfers run between the chosen journeys and the chosen hotel.
+	selectStale = map[string][]string{
+		Outbound: {TransferArrival}, Stay: {TransferArrival, TransferDeparture}, Return: {TransferDeparture},
+	}
 )
 
 // Apply merges a patch into the plan and invalidates exactly what the change
@@ -336,9 +345,13 @@ func (p *TripPlan) selectOption(s Selection) []string {
 	}
 	for _, o := range comp.Options {
 		if o.ID == s.OptionID && !o.hasFlag(FlagSelectedUnavailable) {
+			if comp.SelectedID == o.ID {
+				return nil
+			}
 			comp.SelectedID = o.ID
 			p.dropConflicts(s.Component)
-			return []string{fmt.Sprintf("выбран вариант %s", OptionTitle(o))}
+			changes := []string{fmt.Sprintf("выбран вариант %s", OptionTitle(o))}
+			return append(changes, p.markStale("подбираю трансфер под выбор", selectStale[s.Component])...)
 		}
 	}
 	return []string{"выбранного варианта нет среди доступных, выбор не изменился"}
@@ -384,6 +397,10 @@ func (p *TripPlan) SearchGate() bool {
 // records each one as an assumption.
 func (p *TripPlan) FillDefaults(today time.Time) {
 	c := &p.Constraints
+	if c.Origin == "" {
+		c.Origin = DefaultOrigin
+		p.addAssumption("origin", DefaultOrigin, "город отправления не назван")
+	}
 	if c.Citizenship == "" {
 		c.Citizenship = DefaultCitizenship
 		p.addAssumption("citizenship", DefaultCitizenship, "гражданство не названо")
