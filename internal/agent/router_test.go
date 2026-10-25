@@ -26,11 +26,15 @@ func TestRouteRulesPhase1Fields(t *testing.T) {
 		{"Из Казани", func(p plan.Patch) bool { return s(p.Origin) == "Казани" }},
 		{"бюджет строго 100 тысяч", func(p plan.Patch) bool { return p.Budget != nil && p.Budget.AmountRub == 100000 && p.Budget.Strict }},
 		{"бюджет примерно 100 тысяч", func(p plan.Patch) bool { return p.Budget != nil && !p.Budget.Strict }},
-		{"хочу поездом", func(p plan.Patch) bool { return p.Preferences != nil && slices.Equal(*p.Preferences.TransportModes, []string{"rail"}) }},
+		{"хочу поездом", func(p plan.Patch) bool {
+			return p.Preferences != nil && slices.Equal(*p.Preferences.TransportModes, []string{"rail"})
+		}},
 		{"не больше 4 часов в пути", func(p plan.Patch) bool {
 			return p.Preferences != nil && *p.Preferences.MaxTravelHours == 4 && p.Assumed[plan.FieldMaxTravelHours] == ""
 		}},
-		{"виза не проблема", func(p plan.Patch) bool { return p.Preferences != nil && p.Preferences.VisaFreeOnly != nil && !*p.Preferences.VisaFreeOnly }},
+		{"виза не проблема", func(p plan.Patch) bool {
+			return p.Preferences != nil && p.Preferences.VisaFreeOnly != nil && !*p.Preferences.VisaFreeOnly
+		}},
 		{"только без визы", func(p plan.Patch) bool { return p.Preferences != nil && *p.Preferences.VisaFreeOnly }},
 		{"в горы на природу", func(p plan.Patch) bool { return slices.Equal(*p.Preferences.Moods, []string{"mountains", "nature"}) }},
 		{"хочу в город", func(p plan.Patch) bool { return p.Preferences == nil }},
