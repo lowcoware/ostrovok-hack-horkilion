@@ -1,4 +1,4 @@
-package inventory
+package catalog
 
 import (
 	"context"

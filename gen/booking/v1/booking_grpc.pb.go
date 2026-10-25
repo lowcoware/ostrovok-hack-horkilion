@@ -21,17 +21,25 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	BookingService_CreateOrder_FullMethodName = "/booking.v1.BookingService/CreateOrder"
 	BookingService_GetOrder_FullMethodName    = "/booking.v1.BookingService/GetOrder"
+	BookingService_ListOrders_FullMethodName  = "/booking.v1.BookingService/ListOrders"
 )
 
 // BookingServiceClient is the client API for BookingService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// BookingService creates orders with simulated payment.
+// BookingService creates orders of several items with simulated payment.
+//
+// The owner is passed in gRPC metadata as x-owner-id, never in the body. An
+// order of another owner is reported as NOT_FOUND.
 type BookingServiceClient interface {
-	// CreateOrder is idempotent by idempotency_key: a retry returns the existing order.
+	// CreateOrder is idempotent by idempotency_key: a retry returns the existing
+	// order. Booking re-prices every item with its supplier. When a price differs
+	// from the one the user saw, no order is created and the call fails with
+	// FAILED_PRECONDITION carrying a PriceChanged detail.
 	CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*Order, error)
 	GetOrder(ctx context.Context, in *GetOrderRequest, opts ...grpc.CallOption) (*Order, error)
+	ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error)
 }
 
 type bookingServiceClient struct {
@@ -62,15 +70,32 @@ func (c *bookingServiceClient) GetOrder(ctx context.Context, in *GetOrderRequest
 	return out, nil
 }
 
+func (c *bookingServiceClient) ListOrders(ctx context.Context, in *ListOrdersRequest, opts ...grpc.CallOption) (*ListOrdersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListOrdersResponse)
+	err := c.cc.Invoke(ctx, BookingService_ListOrders_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BookingServiceServer is the server API for BookingService service.
 // All implementations must embed UnimplementedBookingServiceServer
 // for forward compatibility.
 //
-// BookingService creates orders with simulated payment.
+// BookingService creates orders of several items with simulated payment.
+//
+// The owner is passed in gRPC metadata as x-owner-id, never in the body. An
+// order of another owner is reported as NOT_FOUND.
 type BookingServiceServer interface {
-	// CreateOrder is idempotent by idempotency_key: a retry returns the existing order.
+	// CreateOrder is idempotent by idempotency_key: a retry returns the existing
+	// order. Booking re-prices every item with its supplier. When a price differs
+	// from the one the user saw, no order is created and the call fails with
+	// FAILED_PRECONDITION carrying a PriceChanged detail.
 	CreateOrder(context.Context, *CreateOrderRequest) (*Order, error)
 	GetOrder(context.Context, *GetOrderRequest) (*Order, error)
+	ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error)
 	mustEmbedUnimplementedBookingServiceServer()
 }
 
@@ -86,6 +111,9 @@ func (UnimplementedBookingServiceServer) CreateOrder(context.Context, *CreateOrd
 }
 func (UnimplementedBookingServiceServer) GetOrder(context.Context, *GetOrderRequest) (*Order, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetOrder not implemented")
+}
+func (UnimplementedBookingServiceServer) ListOrders(context.Context, *ListOrdersRequest) (*ListOrdersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListOrders not implemented")
 }
 func (UnimplementedBookingServiceServer) mustEmbedUnimplementedBookingServiceServer() {}
 func (UnimplementedBookingServiceServer) testEmbeddedByValue()                        {}
@@ -144,6 +172,24 @@ func _BookingService_GetOrder_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BookingService_ListOrders_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOrdersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BookingServiceServer).ListOrders(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BookingService_ListOrders_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BookingServiceServer).ListOrders(ctx, req.(*ListOrdersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BookingService_ServiceDesc is the grpc.ServiceDesc for BookingService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -158,6 +204,10 @@ var BookingService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOrder",
 			Handler:    _BookingService_GetOrder_Handler,
+		},
+		{
+			MethodName: "ListOrders",
+			Handler:    _BookingService_ListOrders_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

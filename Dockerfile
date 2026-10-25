@@ -17,5 +17,7 @@ RUN test -n "$SERVICE" && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/app /app
+# Business rules read by the agent at start (RULES_PATH, relative to /).
+COPY config/rules.yaml /config/rules.yaml
 USER 65532:65532
 ENTRYPOINT ["/app"]

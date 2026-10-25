@@ -1,0 +1,18 @@
+# Business rules of the agent. They live here, not in prompts, so a business can
+# tune them without touching code. The agent reads this file at start (path in
+# RULES_PATH, default config/rules.yaml) and refuses to start when it is invalid.
+
+connections:
+  # Minimum time from arrival to hotel check-in, transfer included.
+  min_arrival_to_checkin_minutes: 60
+  # Time to be at the airport or station before departure.
+  departure_buffer_minutes: 120
+
+clarify:
+  # The agent asks at most this many questions per turn; the rest it fills with
+  # visible assumptions.
+  max_questions_per_turn: 1
+
+pricing:
+  # Markup added to supplier prices, percent.
+  markup_percent: 0

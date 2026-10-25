@@ -49,3 +49,18 @@ func EnsureStreams(ctx context.Context, js jetstream.JetStream) error {
 	}
 	return nil
 }
+
+// BookingCreated is the payload of SubjectBookingCreated.
+type BookingCreated struct {
+	ID        string            `json:"id"`
+	SessionID string            `json:"session_id"`
+	OwnerID   string            `json:"owner_id"`
+	TotalRub  int64             `json:"total_rub"`
+	Items     []BookingItemInfo `json:"items"`
+}
+
+type BookingItemInfo struct {
+	Kind     string `json:"kind"`
+	Title    string `json:"title"`
+	PriceRub int64  `json:"price_rub"`
+}

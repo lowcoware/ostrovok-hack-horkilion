@@ -2,41 +2,85 @@ syntax = "proto3";
 
 package booking.v1;
 
+import "common/v1/common.proto";
+import "lodging/v1/lodging.proto";
+
 option go_package = "horkilion/gen/booking/v1;bookingv1";
 
-// BookingService creates orders with simulated payment.
+// BookingService creates orders of several items with simulated payment.
+//
+// The owner is passed in gRPC metadata as x-owner-id, never in the body. An
+// order of another owner is reported as NOT_FOUND.
 service BookingService {
-  // CreateOrder is idempotent by idempotency_key: a retry returns the existing order.
+  // CreateOrder is idempotent by idempotency_key: a retry returns the existing
+  // order. Booking re-prices every item with its supplier. When a price differs
+  // from the one the user saw, no order is created and the call fails with
+  // FAILED_PRECONDITION carrying a PriceChanged detail.
   rpc CreateOrder(CreateOrderRequest) returns (Order);
   rpc GetOrder(GetOrderRequest) returns (Order);
+  rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+}
+
+enum ItemKind {
+  ITEM_KIND_UNSPECIFIED = 0;
+  ITEM_KIND_STAY = 1;
+  ITEM_KIND_JOURNEY = 2;
+  ITEM_KIND_TRANSFER = 3;
+}
+
+message OrderItem {
+  ItemKind kind = 1;
+  // Offer id from the supplier of this kind.
+  string offer_id = 2;
+  // The price the user saw. Booking compares it with the supplier's current price.
+  int64 price_rub = 3;
+  // Short description for the order page, e.g. hotel name or flight number.
+  string title = 4;
+  // For ITEM_KIND_STAY.
+  lodging.v1.Stay stay = 5;
+  // For ITEM_KIND_JOURNEY and ITEM_KIND_TRANSFER.
+  common.v1.Travelers travelers = 6;
 }
 
 message CreateOrderRequest {
   string idempotency_key = 1;
   string session_id = 2;
-  string hotel_id = 3;
-  // Check-in date in YYYY-MM-DD.
-  string check_in = 4;
-  int32 nights = 5;
-  int32 adults = 6;
-  int32 children = 7;
-  string guest_name = 8;
-  // Pets change the price, so the order must be priced with the same flag as the search.
-  bool with_pets = 9;
+  string guest_name = 3;
+  repeated OrderItem items = 4;
+}
+
+message Order {
+  string id = 1;
+  string session_id = 2;
+  // "paid": payment is simulated.
+  string status = 3;
+  repeated OrderItem items = 4;
+  int64 total_rub = 5;
+  string guest_name = 6;
+  // RFC 3339.
+  string created_at = 7;
 }
 
 message GetOrderRequest {
   string id = 1;
 }
 
-message Order {
-  string id = 1;
-  string session_id = 2;
-  string status = 3;
-  string hotel_id = 4;
-  string hotel_name = 5;
-  string check_in = 6;
-  int32 nights = 7;
-  int64 total_price_rub = 8;
-  string created_at = 9;
+message ListOrdersRequest {}
+
+message ListOrdersResponse {
+  repeated Order orders = 1;
+}
+
+// PriceChanged is the detail of FAILED_PRECONDITION from CreateOrder.
+message PriceChanged {
+  repeated ItemPrice items = 1;
+}
+
+message ItemPrice {
+  // Position of the item in the request.
+  int32 index = 1;
+  ItemKind kind = 2;
+  string offer_id = 3;
+  int64 seen_price_rub = 4;
+  int64 actual_price_rub = 5;
 }

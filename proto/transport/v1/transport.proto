@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package transport.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "horkilion/gen/transport/v1;transportv1";
+
+// TransportService searches flights and trains between two cities.
+service TransportService {
+  rpc SearchJourneys(SearchJourneysRequest) returns (SearchJourneysResponse);
+  // GetOffer re-prices one journey. Same input, same price as in the search.
+  rpc GetOffer(GetOfferRequest) returns (Journey);
+}
+
+enum Mode {
+  MODE_UNSPECIFIED = 0;
+  MODE_AIR = 1;
+  MODE_RAIL = 2;
+}
+
+message SearchJourneysRequest {
+  // City names or codes.
+  string origin = 1;
+  string destination = 2;
+  // Departure date in YYYY-MM-DD.
+  string date = 3;
+  common.v1.Travelers passengers = 4;
+  // Empty for any mode.
+  repeated Mode modes = 5;
+}
+
+message SearchJourneysResponse {
+  repeated Journey journeys = 1;
+}
+
+message GetOfferRequest {
+  string journey_id = 1;
+  common.v1.Travelers passengers = 2;
+}
+
+// Journey is one way to get from origin to destination, possibly with changes.
+message Journey {
+  string id = 1;
+  repeated Segment segments = 2;
+  int32 duration_minutes = 3;
+  // Number of changes between segments.
+  int32 transfers = 4;
+  bool baggage_included = 5;
+  bool refundable = 6;
+  // For all passengers.
+  int64 price_rub = 7;
+  repeated common.v1.Source sources = 8;
+}
+
+message Segment {
+  Mode mode = 1;
+  string carrier = 2;
+  // Flight or train number.
+  string number = 3;
+  common.v1.Place from = 4;
+  common.v1.Place to = 5;
+  // RFC 3339 in the time zone of the place.
+  string depart_at = 6;
+  string arrive_at = 7;
+}
