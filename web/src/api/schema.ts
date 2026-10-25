@@ -456,10 +456,10 @@ export interface components {
             conflicts: components["schemas"]["Conflict"][];
             /**
              * Format: int64
-             * @description Сумма выбранных вариантов всех компонентов.
+             * @description Сумма корзины — выбранного отеля и дороги с трансферами, из которых собрана поездка (выбранный вариант или первый, пока пользователь не выбрал).
              */
             total_rub: number;
-            /** @description Сумма выбранного больше бюджета. */
+            /** @description Сумма корзины больше бюджета. */
             over_budget: boolean;
         };
         /** @description Что известно о поездке. Неизвестное отсутствует. */
@@ -1244,7 +1244,7 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
             /**
-             * @description Заказ не создан: `nothing_selected`, если в плане нет выбранных вариантов;
+             * @description Заказ не создан: `nothing_selected`, если в плане не выбран отель;
              *     `offer_unavailable`, если выбранный вариант больше не предлагается;
              *     `price_changed`, если цена изменилась (`details` — `PriceChangedDetails`).
              */

@@ -7,11 +7,15 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
 	catalogv1 "horkilion/gen/catalog/v1"
+	transferv1 "horkilion/gen/transfer/v1"
+	transportv1 "horkilion/gen/transport/v1"
+	"horkilion/internal/agent/plan"
 	"horkilion/internal/catalog"
 	"horkilion/internal/dataset"
 )
@@ -94,5 +98,36 @@ func TestProvidersSkipUnusedEntries(t *testing.T) {
 	})
 	if len(got) != 1 || got[0].Provider != "osm" || got[0].Description == "" {
 		t.Errorf("want only the used osm entry with a description, got %+v", got)
+	}
+}
+
+func TestCartIsTheAssembledTrip(t *testing.T) {
+	p := searchedPlan(uuid.NewString())
+	journey := func(id string) plan.Option {
+		return plan.JourneyOption(&transportv1.Journey{Id: id, PriceRub: 12000, Segments: []*transportv1.Segment{{Carrier: "SU", Number: id}}})
+	}
+	transfer := func(id string) plan.Option {
+		return plan.TransferOption(&transferv1.Transfer{Id: id, PriceRub: 1500})
+	}
+	p.SetOptions(plan.Outbound, []plan.Option{journey("out1"), journey("out2")})
+	p.SetOptions(plan.Return, []plan.Option{journey("back1")})
+	p.SetOptions(plan.TransferArrival, []plan.Option{transfer("in1")})
+	p.SetOptions(plan.TransferDeparture, []plan.Option{transfer("dep1")})
+
+	items, err := cartItems(p)
+	if err != nil || len(items) != 5 {
+		t.Fatalf("the hotel and the four assembled components must be in the cart, got %d items, %v", len(items), err)
+	}
+	var sum int64
+	for _, it := range items {
+		sum += it.GetPriceRub()
+	}
+	if sum != p.TotalRub || items[0].GetOfferId() != "out1" {
+		t.Errorf("total %d must be the cart sum %d, first outbound by default, got %s", p.TotalRub, sum, items[0].GetOfferId())
+	}
+
+	p.Components.Stay.SelectedID = ""
+	if _, err := cartItems(p); err == nil || err.Error() != "nothing_selected" {
+		t.Errorf("without a chosen hotel there is nothing to buy, got %v", err)
 	}
 }

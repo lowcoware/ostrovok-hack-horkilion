@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -308,23 +309,29 @@ func (g *Gateway) checkout(c *gin.Context) {
 }
 
 var cartMessages = map[string]string{
-	"nothing_selected":  "в плане нет выбранных вариантов",
+	"nothing_selected":  "в плане не выбран отель",
 	"offer_unavailable": "выбранный вариант больше не предлагается, выберите другой",
 }
 
-// cartItems builds order items from the selected options of every component.
+// cartItems builds order items from the cart of the plan (plan.InCart): the
+// selected hotel plus the journeys and transfers the trip is assembled from.
+// Without a selected hotel there is nothing to buy; a selection that is no
+// longer offered blocks checkout instead of being swapped silently.
 func cartItems(p plan.TripPlan) ([]*bookingv1.OrderItem, error) {
 	c := p.Constraints
+	for _, name := range plan.ComponentNames {
+		if sel := p.Components.Get(name).Selected(); sel != nil && slices.Contains(sel.Flags, plan.FlagSelectedUnavailable) {
+			return nil, errors.New("offer_unavailable")
+		}
+	}
+	if p.InCart(plan.Stay) == nil {
+		return nil, errors.New("nothing_selected")
+	}
 	var items []*bookingv1.OrderItem
 	for _, name := range plan.ComponentNames {
-		sel := p.Components.Get(name).Selected()
+		sel := p.InCart(name)
 		if sel == nil {
 			continue
-		}
-		for _, f := range sel.Flags {
-			if f == plan.FlagSelectedUnavailable {
-				return nil, errors.New("offer_unavailable")
-			}
 		}
 		item := &bookingv1.OrderItem{OfferId: sel.ID, PriceRub: sel.PriceRub, Title: plan.OptionTitle(*sel)}
 		switch sel.Kind {
@@ -336,9 +343,6 @@ func cartItems(p plan.TripPlan) ([]*bookingv1.OrderItem, error) {
 			item.Kind, item.Travelers = bookingv1.ItemKind_ITEM_KIND_TRANSFER, c.TravelersProto()
 		}
 		items = append(items, item)
-	}
-	if len(items) == 0 {
-		return nil, errors.New("nothing_selected")
 	}
 	return items, nil
 }

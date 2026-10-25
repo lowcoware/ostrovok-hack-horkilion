@@ -481,13 +481,27 @@ func (p *TripPlan) NextStage() {
 	}
 }
 
-// recompute sums the selected options and flags options that would break the
-// budget if chosen instead of the current selection of their component.
+// InCart is the option of a component that checkout buys: the hotel the user
+// selected, and for the journeys and transfers the option the trip is
+// assembled from (Component.Effective). nil means nothing to buy.
+func (p *TripPlan) InCart(component string) *Option {
+	comp := p.Components.Get(component)
+	if component == Stay {
+		if sel := comp.Selected(); sel != nil && !sel.hasFlag(FlagSelectedUnavailable) {
+			return sel
+		}
+		return nil
+	}
+	return comp.Effective()
+}
+
+// recompute sums the cart and flags options that would break the budget if
+// chosen instead of the current cart option of their component.
 func (p *TripPlan) recompute() {
 	var total int64
 	for _, name := range ComponentNames {
-		if sel := p.Components.Get(name).Selected(); sel != nil && !sel.hasFlag(FlagSelectedUnavailable) {
-			total += sel.PriceRub
+		if o := p.InCart(name); o != nil {
+			total += o.PriceRub
 		}
 	}
 	p.TotalRub = total
@@ -497,8 +511,8 @@ func (p *TripPlan) recompute() {
 	for _, name := range ComponentNames {
 		comp := p.Components.Get(name)
 		others := total
-		if sel := comp.Selected(); sel != nil && !sel.hasFlag(FlagSelectedUnavailable) {
-			others -= sel.PriceRub
+		if o := p.InCart(name); o != nil {
+			others -= o.PriceRub
 		}
 		for i := range comp.Options {
 			o := &comp.Options[i]

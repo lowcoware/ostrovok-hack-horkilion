@@ -155,7 +155,7 @@ export const handlers = [
         price_rub: o.price_rub,
       }));
     if (items.length === 0) {
-      return HttpResponse.json({ error: { code: "nothing_selected", message: "в плане нет выбранных вариантов" } }, { status: 409 });
+      return HttpResponse.json({ error: { code: "nothing_selected", message: "в плане не выбран отель" } }, { status: 409 });
     }
     const order: Order = {
       id: crypto.randomUUID(),

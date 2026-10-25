@@ -241,7 +241,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: |
-            Заказ не создан: `nothing_selected`, если в плане нет выбранных вариантов;
+            Заказ не создан: `nothing_selected`, если в плане не выбран отель;
             `offer_unavailable`, если выбранный вариант больше не предлагается;
             `price_changed`, если цена изменилась (`details` — `PriceChangedDetails`).
           content:
@@ -616,10 +616,10 @@ components:
         total_rub:
           type: integer
           format: int64
-          description: Сумма выбранных вариантов всех компонентов.
+          description: Сумма корзины — выбранного отеля и дороги с трансферами, из которых собрана поездка (выбранный вариант или первый, пока пользователь не выбрал).
         over_budget:
           type: boolean
-          description: Сумма выбранного больше бюджета.
+          description: Сумма корзины больше бюджета.
     Constraints:
       type: object
       description: Что известно о поездке. Неизвестное отсутствует.
