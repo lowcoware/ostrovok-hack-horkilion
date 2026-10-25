@@ -35,7 +35,8 @@ import (
 const replyPrompt = `Ты агент Островка по планированию поездок. Отвечай по-русски, коротко и по делу.
 Решения принимай только по плану поездки (JSON ниже). Не выдумывай отели, цены и погоду, которых нет в плане.
 Если направления нет, а в destination_options есть варианты, предложи их: для каждого почему подходит (explanation.why), чем придётся пожертвовать (tradeoffs), риски (risks), нужна ли виза (destination.visa), и спроси одним вопросом, куда ехать. Если вариантов нет, задай один вопрос: куда ехать.
-Варианты отелей лежат в components.stay.options. Предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски.
+Варианты отелей лежат в components.stay.options. Предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски, и запиши это инструментом explain_options, если он есть.
+Инструменты только ищут и объясняют: выбрать вариант и оформить заказ может только пользователь.
 Дорога туда и обратно лежит в components.outbound и components.return, трансферы — в components.transfer_arrival и components.transfer_departure. Пока пользователь не выбрал, поездка собрана из первого варианта каждого компонента: назови его и скажи, что можно выбрать другой.
 Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts, о каждой проверке из checks со статусом warn или fail (в том числе о визе) и о вариантах с флагом over_budget.
 Если у данных в sources есть kind "synthetic", одной фразой скажи, что это синтетические данные. Чтобы оформить поездку, пользователь выбирает отель и нажимает «Оформить».`
@@ -162,7 +163,7 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	}
 
 	span.SetAttributes(attribute.String("langfuse.observation.metadata.stage", p.Stage))
-	reply, err = a.reply(ctx, p, msg, userText, changes, ev)
+	reply, err = a.reply(ctx, &p, msg, userText, changes, ev)
 	if err != nil {
 		return fmt.Errorf("reply: %w", err)
 	}
@@ -227,6 +228,7 @@ func (a *Agent) advance(ctx context.Context, p *plan.TripPlan, ev *events, today
 		if err := a.assemble(ctx, p, ev); err != nil {
 			return fmt.Errorf("search hotels: %w", err)
 		}
+		p.ExplainStays()
 		if p.Weather == nil {
 			a.weather(ctx, p)
 		}
@@ -291,7 +293,9 @@ func (a *Agent) weather(ctx context.Context, p *plan.TripPlan) {
 	p.Weather = plan.WeatherFromProto(w)
 }
 
-func (a *Agent) reply(ctx context.Context, p plan.TripPlan, msg platform.TurnMessage, userText string, changes []string, ev *events) (string, error) {
+// reply answers the turn. With an LLM the model may call the stage tools,
+// which can add explanations to the plan; without one a template answers.
+func (a *Agent) reply(ctx context.Context, p *plan.TripPlan, msg platform.TurnMessage, userText string, changes []string, ev *events) (string, error) {
 	onToken := func(t string) { ev.emit("token", platform.TokenData{Text: t}) }
 
 	if a.llm != nil {
@@ -316,7 +320,7 @@ func (a *Agent) reply(ctx context.Context, p plan.TripPlan, msg platform.TurnMes
 
 		ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
 		defer cancel()
-		text, err := a.llm.Stream(ctx, messages, onToken)
+		text, err := a.toolLoop(ctx, p, messages, onToken)
 		if err == nil {
 			return text, nil
 		}
@@ -324,7 +328,7 @@ func (a *Agent) reply(ctx context.Context, p plan.TripPlan, msg platform.TurnMes
 	}
 
 	_, span := startSpan(ctx, "reply-template", "span", p)
-	text := templateReply(p, changes)
+	text := templateReply(*p, changes)
 	endSpan(span, text, nil)
 	for _, word := range strings.SplitAfter(text, " ") {
 		onToken(word)

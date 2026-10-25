@@ -96,3 +96,56 @@ func capitalize(s string) string {
 	}
 	return s
 }
+
+// SetExplanation attaches an explanation to an option of a component; false
+// when there is no such option.
+func (p *TripPlan) SetExplanation(component, optionID string, e Explanation) bool {
+	comp := p.Components.Get(component)
+	if comp == nil {
+		return false
+	}
+	for i := range comp.Options {
+		if comp.Options[i].ID == optionID {
+			e.Tradeoffs, e.Risks = nonNil(e.Tradeoffs), nonNil(e.Risks)
+			comp.Options[i].Explanation = &e
+			return true
+		}
+	}
+	return false
+}
+
+var mealTitles = map[string]string{
+	"room_only": "без питания", "breakfast": "завтрак", "half_board": "завтрак и ужин", "all_inclusive": "всё включено",
+}
+
+// ExplainStays explains the first three hotels by rules from their offer, so
+// recommendations carry why, trade-offs and risks without an LLM. An
+// explanation already set (by the LLM) is kept.
+func (p *TripPlan) ExplainStays() {
+	opts := p.Components.Stay.Options
+	for i := range opts[:min(len(opts), 3)] {
+		o := &opts[i]
+		h := o.Stay
+		if o.Explanation != nil || h == nil {
+			continue
+		}
+		e := &Explanation{Tradeoffs: []string{}, Risks: []string{}}
+		e.Why = fmt.Sprintf("%d★, рейтинг %.1f, %s, %.1f км от центра, %d ₽ за всё.", h.Stars, h.Rating, mealTitles[h.Meal], h.DistanceToCenterKm, o.PriceRub)
+		if h.Meal == "room_only" {
+			e.Tradeoffs = append(e.Tradeoffs, "питание не входит")
+		}
+		if h.DistanceToCenterKm > 5 {
+			e.Tradeoffs = append(e.Tradeoffs, "далеко от центра")
+		}
+		if o.hasFlag(FlagOverBudget) {
+			e.Tradeoffs = append(e.Tradeoffs, "с ним поездка выходит за бюджет")
+		}
+		if !h.FreeCancellation {
+			e.Risks = append(e.Risks, "невозвратный тариф: при отмене деньги не вернут")
+		}
+		if p.Constraints.Pets {
+			e.Risks = append(e.Risks, "условия для животного уточните у отеля")
+		}
+		o.Explanation = e
+	}
+}
