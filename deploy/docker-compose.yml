@@ -33,7 +33,7 @@ services:
     image: ${IMAGE_REGISTRY:-horkilion}/horkilion-inventory:${BACKEND_TAG:-latest}
     environment:
       CATALOG_PROVIDER: ${CATALOG_PROVIDER:-open-data}
-      LODGING_PROVIDER: ${LODGING_PROVIDER:-synthetic}
+      LODGING_PROVIDER: ${LODGING_PROVIDER:-osm}
       TRANSPORT_PROVIDER: ${TRANSPORT_PROVIDER:-stub}
       TRANSFER_PROVIDER: ${TRANSFER_PROVIDER:-stub}
 

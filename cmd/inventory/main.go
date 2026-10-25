@@ -49,7 +49,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	lodgingSrv, err := platform.Provider("LODGING_PROVIDER", "synthetic", map[string]func() lodgingv1.LodgingServiceServer{
+	lodgingSrv, err := platform.Provider("LODGING_PROVIDER", "osm", map[string]func() lodgingv1.LodgingServiceServer{
+		"osm":       func() lodgingv1.LodgingServiceServer { return lodging.NewOSM(data) },
 		"synthetic": func() lodgingv1.LodgingServiceServer { return lodging.Synthetic{} },
 	})
 	if err != nil {
