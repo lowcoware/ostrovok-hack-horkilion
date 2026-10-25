@@ -6,6 +6,7 @@
 package synth
 
 import (
+	"errors"
 	"hash/fnv"
 	"math"
 	"math/rand/v2"
@@ -27,6 +28,22 @@ type Party struct {
 
 func PartyFromProto(t *commonv1.Travelers) Party {
 	return Party{Adults: t.GetAdults(), ChildAges: t.GetChildAges(), Pets: t.GetPets()}
+}
+
+// ParseParty validates travellers coming over gRPC.
+func ParseParty(t *commonv1.Travelers) (Party, error) {
+	switch {
+	case t.GetAdults() < 1 || t.GetAdults() > 10:
+		return Party{}, errors.New("adults must be between 1 and 10")
+	case len(t.GetChildAges()) > 10:
+		return Party{}, errors.New("child_ages must have at most 10 items")
+	}
+	for _, age := range t.GetChildAges() {
+		if age < 0 || age > 17 {
+			return Party{}, errors.New("child_ages items must be between 0 and 17")
+		}
+	}
+	return PartyFromProto(t), nil
 }
 
 // People counts everyone who takes a seat or a bed.

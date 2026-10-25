@@ -204,6 +204,21 @@ type Data struct {
 	ClimateByDest   map[string][12]*Climate
 	SourceByName    map[string]*SourceInfo
 	visaByPair      map[string]*Visa
+	routeByPair     map[string]Route
+	railByPair      map[string]RailRoute
+}
+
+// Route returns the air route between two airports in either direction.
+func (d *Data) Route(from, to string) (Route, bool) {
+	r, ok := d.routeByPair[from+"/"+to]
+	return r, ok
+}
+
+// Rail returns the rail route between two stations in either direction; the
+// reverse direction keeps the departures and train numbers of the forward one.
+func (d *Data) Rail(from, to string) (RailRoute, bool) {
+	r, ok := d.railByPair[from+"/"+to]
+	return r, ok
 }
 
 // Visa returns the requirement for a passport and a destination country.
@@ -437,9 +452,26 @@ func (d *Data) index() error {
 		d.HotelByID[h.ID] = h
 		d.HotelsByDest[h.DestinationID] = append(d.HotelsByDest[h.DestinationID], h)
 	}
+	d.routeByPair = map[string]Route{}
 	for _, r := range d.Routes {
 		if d.AirportByIATA[r.FromIATA] == nil || d.AirportByIATA[r.ToIATA] == nil || r.DistanceKm <= 0 {
 			fail("routes: bad record %s-%s", r.FromIATA, r.ToIATA)
+		}
+		d.routeByPair[r.FromIATA+"/"+r.ToIATA] = r
+	}
+	for _, r := range d.Routes {
+		if _, ok := d.routeByPair[r.ToIATA+"/"+r.FromIATA]; !ok {
+			d.routeByPair[r.ToIATA+"/"+r.FromIATA] = Route{FromIATA: r.ToIATA, ToIATA: r.FromIATA, DistanceKm: r.DistanceKm, Direct: r.Direct}
+		}
+	}
+	d.railByPair = map[string]RailRoute{}
+	for _, r := range d.RailRoutes {
+		d.railByPair[r.FromStation+"/"+r.ToStation] = r
+	}
+	for _, r := range d.RailRoutes {
+		if _, ok := d.railByPair[r.ToStation+"/"+r.FromStation]; !ok {
+			d.railByPair[r.ToStation+"/"+r.FromStation] = RailRoute{FromStation: r.ToStation, ToStation: r.FromStation,
+				DurationMin: r.DurationMin, Departures: r.Departures, TrainNumbers: r.TrainNumbers}
 		}
 	}
 	for _, r := range d.RailRoutes {
@@ -480,4 +512,29 @@ func (d *Data) index() error {
 	}
 	known("calibration", d.Calibration.Sources)
 	return errors.Join(errs...)
+}
+
+// Fold makes names comparable: trimmed, lower case, ё as е.
+func Fold(s string) string {
+	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), "ё", "е")
+}
+
+// FindCity resolves a city by its id, Russian or English name, or by a
+// destination id or name (the destination's city).
+func (d *Data) FindCity(name string) *City {
+	q := Fold(name)
+	if c := d.CityByID[q]; c != nil {
+		return c
+	}
+	for i := range d.Cities {
+		if c := &d.Cities[i]; Fold(c.NameRu) == q || Fold(c.NameEn) == q {
+			return c
+		}
+	}
+	for _, x := range d.Destinations {
+		if Fold(x.ID) == q || Fold(x.Name) == q {
+			return d.CityByID[x.CityID]
+		}
+	}
+	return nil
 }

@@ -25,12 +25,10 @@ type OpenData struct {
 	weather   *Weather
 	data      *dataset.Data
 	countries []*catalogv1.Country
-	routes    map[string]dataset.Route
-	rail      map[string]dataset.RailRoute
 }
 
 func NewOpenData(data *dataset.Data) *OpenData {
-	s := &OpenData{weather: NewWeather(), data: data, routes: map[string]dataset.Route{}, rail: map[string]dataset.RailRoute{}}
+	s := &OpenData{weather: NewWeather(), data: data}
 	for _, c := range data.Countries {
 		s.countries = append(s.countries, &catalogv1.Country{Code: c.Code, NameRu: c.NameRu, NameEn: c.NameEn})
 	}
@@ -43,20 +41,6 @@ func NewOpenData(data *dataset.Data) *OpenData {
 		}
 		return strings.Compare(fold(a.NameRu), fold(b.NameRu))
 	})
-	// Routes and rail routes work both ways.
-	for _, r := range data.Routes {
-		s.routes[r.FromIATA+"/"+r.ToIATA] = r
-		if _, ok := s.routes[r.ToIATA+"/"+r.FromIATA]; !ok {
-			s.routes[r.ToIATA+"/"+r.FromIATA] = dataset.Route{FromIATA: r.ToIATA, ToIATA: r.FromIATA, DistanceKm: r.DistanceKm, Direct: r.Direct}
-		}
-	}
-	for _, r := range data.RailRoutes {
-		s.rail[r.FromStation+"/"+r.ToStation] = r
-		if _, ok := s.rail[r.ToStation+"/"+r.FromStation]; !ok {
-			s.rail[r.ToStation+"/"+r.FromStation] = dataset.RailRoute{FromStation: r.ToStation, ToStation: r.FromStation,
-				DurationMin: r.DurationMin, Departures: r.Departures, TrainNumbers: r.TrainNumbers}
-		}
-	}
 	return s
 }
 

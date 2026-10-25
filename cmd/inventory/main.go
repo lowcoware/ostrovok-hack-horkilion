@@ -56,8 +56,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	transportSrv, err := platform.Provider("TRANSPORT_PROVIDER", "stub", map[string]func() transportv1.TransportServiceServer{
-		"stub": func() transportv1.TransportServiceServer { return transport.Stub{} },
+	transportSrv, err := platform.Provider("TRANSPORT_PROVIDER", "synthetic", map[string]func() transportv1.TransportServiceServer{
+		"synthetic": func() transportv1.TransportServiceServer { return transport.NewSynthetic(data) },
+		"stub":      func() transportv1.TransportServiceServer { return transport.Stub{} },
 	})
 	if err != nil {
 		return err

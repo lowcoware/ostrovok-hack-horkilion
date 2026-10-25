@@ -45,10 +45,7 @@ const (
 	estimateTransferKm = 20
 )
 
-// fold makes names comparable: lower case, ё as е.
-func fold(s string) string {
-	return strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), "ё", "е")
-}
+func fold(s string) string { return dataset.Fold(s) }
 
 func (s *OpenData) ListCountries(context.Context, *catalogv1.ListCountriesRequest) (*catalogv1.ListCountriesResponse, error) {
 	return &catalogv1.ListCountriesResponse{Countries: s.countries}, nil
@@ -140,20 +137,6 @@ func airportPlace(a dataset.Airport) *commonv1.Place {
 	}
 }
 
-// findCity resolves a departure city by id or by its Russian or English name.
-func (s *OpenData) findCity(name string) *dataset.City {
-	q := fold(name)
-	if c := s.data.CityByID[q]; c != nil {
-		return c
-	}
-	for i := range s.data.Cities {
-		if c := &s.data.Cities[i]; fold(c.NameRu) == q || fold(c.NameEn) == q {
-			return c
-		}
-	}
-	return nil
-}
-
 // leg is the fastest way between two cities one way.
 type leg struct {
 	minutes int
@@ -165,7 +148,7 @@ func (s *OpenData) fastest(from *dataset.City, to *dataset.Destination, p synth.
 	cal := s.data.Calibration
 	for _, a := range from.Airports {
 		for _, b := range to.Airports {
-			if r, ok := s.routes[a+"/"+b]; ok {
+			if r, ok := s.data.Route(a, b); ok {
 				m, _ := synth.Air(cal, r)
 				if !found || m < best.minutes {
 					best, found = leg{m, func(d time.Time) int64 { return synth.AirFareRub(cal, r, p, d) }}, true
@@ -175,7 +158,7 @@ func (s *OpenData) fastest(from *dataset.City, to *dataset.Destination, p synth.
 	}
 	for _, a := range from.Stations {
 		for _, b := range to.Stations {
-			if r, ok := s.rail[a+"/"+b]; ok {
+			if r, ok := s.data.Rail(a, b); ok {
 				if !found || r.DurationMin < best.minutes {
 					best, found = leg{r.DurationMin, func(d time.Time) int64 {
 						return synth.RailFareRub(cal, r, r.TrainNumbers[0], p, d)
@@ -192,7 +175,7 @@ func (s *OpenData) SearchDestinations(_ context.Context, req *catalogv1.SearchDe
 	if !reCountry.MatchString(cit) || s.data.CountryByCode[cit] == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unknown citizenship %q", cit)
 	}
-	origin := s.findCity(req.GetOrigin())
+	origin := s.data.FindCity(req.GetOrigin())
 	if origin == nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unknown origin city %q", req.GetOrigin())
 	}
