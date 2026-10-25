@@ -72,6 +72,13 @@
   подключение»; единственная межролевая блокирующая — `P1-FE-01.1–01.2` ждут `P1-BE-01`), `docs/phase1/backend.md`
   (`P1-BE-01…13`), `docs/phase1/data.md` (`P1-DS-01…08`), `docs/phase1/frontend.md` (`P1-FE-01…11`); спека 0003
   ссылается на эти файлы вместо своего списка задач; попало в `main` через PR #3. (`12ebf46`)
+- Каркас данных `data/`: сборка снапшота, его проверка и реестр источников (`P1-DS-01`). Технически:
+  раскладка из CFC-3 и `data/requirements.txt` (`requests`); `data/build.py` собирает `snapshot/` из
+  `loaders/<источник>/out/<набор>.jsonl` и пишет `manifest.json` с `records` и `sha256`, повторная сборка даёт
+  тот же `sha256`, `data/.gitattributes` держит LF в `snapshot/`; `data/validate.py` проверяет манифест, схемы
+  всех наборов CFC-3, дубли ключей и имена в `sources`, задача `data` в CI запускает его при изменении `data/`;
+  `data/sources.yaml` — все источники `spec.md`, раздел 6, со статусом `used` или `considered`.
+  (`7067397`, `0e4952d`, `1f20bfc`, `70fd6d6`)
 
 ### Изменено
 
