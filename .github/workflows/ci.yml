@@ -96,6 +96,17 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Keep a Changelog 1.1.0 with a commit hash in every entry. Runs on pull requests only: after a
+  # squash or rebase merge the branch hashes are not in main, and that must not block the deploy.
+  changelog:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - run: python3 scripts/check-changelog.py CHANGELOG.md
+
   compose:
     needs: changes
     if: needs.changes.outputs.deploy == 'true'
