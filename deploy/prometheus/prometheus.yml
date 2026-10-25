@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: services
+    static_configs:
+      - targets:
+          - gateway:8081
+          - agent:8081
+          - inventory:8081
+          - booking:8081
+          - notifier:8081

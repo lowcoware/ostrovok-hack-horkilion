@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package inventory.v1;
+
+option go_package = "horkilion/gen/inventory/v1;inventoryv1";
+
+// InventoryService searches and prices hotels and provides weather for a destination.
+// Hotel data is synthetic and deterministic; weather comes from Open-Meteo.
+service InventoryService {
+  rpc SearchHotels(SearchHotelsRequest) returns (SearchHotelsResponse);
+  // GetOffer re-prices a single hotel for the given stay. Booking uses it so that
+  // the price never comes from the client.
+  rpc GetOffer(GetOfferRequest) returns (Hotel);
+  rpc GetWeather(GetWeatherRequest) returns (GetWeatherResponse);
+}
+
+message Stay {
+  // Check-in date in YYYY-MM-DD.
+  string check_in = 1;
+  int32 nights = 2;
+  int32 adults = 3;
+  int32 children = 4;
+  bool with_pets = 5;
+}
+
+message SearchHotelsRequest {
+  string city = 1;
+  Stay stay = 2;
+}
+
+message SearchHotelsResponse {
+  repeated Hotel hotels = 1;
+}
+
+message GetOfferRequest {
+  string hotel_id = 1;
+  Stay stay = 2;
+}
+
+message Hotel {
+  string id = 1;
+  string name = 2;
+  string city = 3;
+  int32 stars = 4;
+  double rating = 5;
+  string meal = 6;
+  bool free_cancellation = 7;
+  bool pets_allowed = 8;
+  int64 price_per_night_rub = 9;
+  int64 total_price_rub = 10;
+  double distance_to_center_km = 11;
+  // True for generated data. The agent must say so to the user.
+  bool synthetic = 12;
+}
+
+message GetWeatherRequest {
+  string city = 1;
+  // Date in YYYY-MM-DD.
+  string date = 2;
+}
+
+message GetWeatherResponse {
+  string city = 1;
+  double latitude = 2;
+  double longitude = 3;
+  double temp_max_c = 4;
+  double temp_min_c = 5;
+  double precipitation_mm = 6;
+  // "forecast" for dates within the forecast window, "last_year" otherwise.
+  string source = 7;
+}

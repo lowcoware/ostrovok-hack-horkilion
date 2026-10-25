@@ -1,0 +1,21 @@
+# Local builds instead of registry images:
+#   docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up --build
+x-go: &go
+  context: ..
+  dockerfile: Dockerfile
+
+services:
+  migrate:
+    build: { <<: *go, args: { SERVICE: migrate } }
+  inventory:
+    build: { <<: *go, args: { SERVICE: inventory } }
+  booking:
+    build: { <<: *go, args: { SERVICE: booking } }
+  agent:
+    build: { <<: *go, args: { SERVICE: agent } }
+  gateway:
+    build: { <<: *go, args: { SERVICE: gateway } }
+  notifier:
+    build: { <<: *go, args: { SERVICE: notifier } }
+  web:
+    build: { context: ../web }

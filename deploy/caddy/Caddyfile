@@ -1,0 +1,33 @@
+# Addresses come from the environment. Use domain names on a server to get
+# automatic HTTPS (Let's Encrypt), or ports for plain HTTP:
+#   SITE_ADDRESS=trip.example.com     LANGFUSE_ADDRESS=langfuse.example.com   GRAFANA_ADDRESS=grafana.example.com
+#   SITE_ADDRESS=:80                  LANGFUSE_ADDRESS=:3000                  GRAFANA_ADDRESS=:3001
+
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	handle /api/* {
+		# SSE responses are flushed immediately by reverse_proxy.
+		reverse_proxy gateway:8080
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
+
+{$LANGFUSE_ADDRESS::3000} {
+	reverse_proxy langfuse-web:3000
+}
+
+{$GRAFANA_ADDRESS::3001} {
+	reverse_proxy grafana:3000
+}

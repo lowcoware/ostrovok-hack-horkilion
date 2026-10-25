@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package booking.v1;
+
+option go_package = "horkilion/gen/booking/v1;bookingv1";
+
+// BookingService creates orders with simulated payment.
+service BookingService {
+  // CreateOrder is idempotent by idempotency_key: a retry returns the existing order.
+  rpc CreateOrder(CreateOrderRequest) returns (Order);
+  rpc GetOrder(GetOrderRequest) returns (Order);
+}
+
+message CreateOrderRequest {
+  string idempotency_key = 1;
+  string session_id = 2;
+  string hotel_id = 3;
+  // Check-in date in YYYY-MM-DD.
+  string check_in = 4;
+  int32 nights = 5;
+  int32 adults = 6;
+  int32 children = 7;
+  string guest_name = 8;
+  // Pets change the price, so the order must be priced with the same flag as the search.
+  bool with_pets = 9;
+}
+
+message GetOrderRequest {
+  string id = 1;
+}
+
+message Order {
+  string id = 1;
+  string session_id = 2;
+  string status = 3;
+  string hotel_id = 4;
+  string hotel_name = 5;
+  string check_in = 6;
+  int32 nights = 7;
+  int64 total_price_rub = 8;
+  string created_at = 9;
+}

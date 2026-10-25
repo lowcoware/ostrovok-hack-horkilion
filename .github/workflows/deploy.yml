@@ -1,0 +1,108 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    needs: ci
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [gateway, agent, inventory, booking, notifier, migrate, web]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Registry name (GHCR requires lowercase)
+        run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.service == 'web' && 'web' || '.' }}
+          build-args: SERVICE=${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/horkilion-${{ matrix.service }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/horkilion-${{ matrix.service }}:latest
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'horkilion' }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Registry name (GHCR requires lowercase)
+        run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_deploy ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port $SSH_PORT
+            IdentityFile ~/.ssh/id_deploy
+            StrictHostKeyChecking yes
+          EOF
+
+      - name: Copy deploy files
+        run: |
+          ssh server "mkdir -p '$DEPLOY_PATH'"
+          scp -r deploy/docker-compose.yml deploy/.env.example deploy/caddy deploy/postgres \
+            deploy/clickhouse deploy/prometheus deploy/grafana "server:$DEPLOY_PATH/"
+
+      - name: Log in to GHCR on the server
+        # The token goes over stdin, never into a command line on the server.
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | ssh server "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
+
+      - name: Pull and start
+        run: |
+          ssh server "bash -s" <<EOF
+          set -euo pipefail
+          cd '$DEPLOY_PATH'
+          test -f .env || { echo "deploy/.env is missing on the server, copy .env.example and fill it in"; exit 1; }
+          export IMAGE_REGISTRY='$REGISTRY' IMAGE_TAG='${{ github.sha }}'
+          docker compose pull --quiet
+          docker compose up -d --remove-orphans
+          for i in \$(seq 1 30); do
+            if docker compose exec -T gateway /app healthcheck; then echo "gateway is healthy"; break; fi
+            if [ "\$i" = 30 ]; then docker compose ps; docker compose logs --tail=50 gateway booking agent migrate; exit 1; fi
+            sleep 5
+          done
+          docker image prune -f
+          EOF
+
+      - name: Log out of GHCR on the server
+        if: always()
+        run: ssh server "docker logout ghcr.io" || true
