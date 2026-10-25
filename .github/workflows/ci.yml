@@ -25,6 +25,7 @@ jobs:
       backend: ${{ steps.diff.outputs.backend }}
       web: ${{ steps.diff.outputs.web }}
       deploy: ${{ steps.diff.outputs.deploy }}
+      data: ${{ steps.diff.outputs.data }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -45,6 +46,7 @@ jobs:
             echo "backend=$(changed '^(api|cmd|config|internal|gen|migrations|proto|scripts)/|^go\.(mod|sum)$|^Dockerfile$|^\.dockerignore$')"
             echo "web=$(changed '^(api|web)/|^redocly\.yaml$')"
             echo "deploy=$(changed '^deploy/')"
+            echo "data=$(changed '^data/')"
           } | tee -a "$GITHUB_OUTPUT"
 
   go:
@@ -95,6 +97,15 @@ jobs:
           git diff --exit-code src/api/schema.ts || { echo "::error::web/src/api/schema.ts is stale: run npm run gen:api and commit"; exit 1; }
       - run: npm test
       - run: npm run build
+
+  # Snapshot format from spec 0003, CFC-3: schemas, duplicate keys, sources, manifest.
+  data:
+    needs: changes
+    if: needs.changes.outputs.data == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 data/validate.py
 
   # Keep a Changelog 1.1.0 with a commit hash in every entry. Runs on pull requests only: after a
   # squash or rebase merge the branch hashes are not in main, and that must not block the deploy.
