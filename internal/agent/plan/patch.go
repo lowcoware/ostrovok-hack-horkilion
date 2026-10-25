@@ -445,6 +445,8 @@ func (p *TripPlan) SetOptions(component string, options []Option) {
 // NextStage moves the plan to the earliest stage whose gate is not passed.
 func (p *TripPlan) NextStage() {
 	switch {
+	case !p.SearchGate() && len(p.DestinationOptions) > 0:
+		p.Stage = StageInspire
 	case !p.SearchGate():
 		p.Stage = StageClarify
 	case len(p.Components.Stay.Options) == 0:

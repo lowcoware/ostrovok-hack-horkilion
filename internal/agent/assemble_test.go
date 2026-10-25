@@ -34,7 +34,7 @@ func inventoryAgent(t *testing.T) *Agent {
 	lis := bufconn.Listen(1 << 20)
 	srv := grpc.NewServer()
 	lodgingv1.RegisterLodgingServiceServer(srv, lodging.NewOSM(data))
-	catalogv1.RegisterCatalogServiceServer(srv, catalog.NewOpenData(data))
+	catalogv1.RegisterCatalogServiceServer(srv, offlineCatalog{catalog.NewOpenData(data)})
 	transportv1.RegisterTransportServiceServer(srv, transport.NewSynthetic(data))
 	transferv1.RegisterTransferServiceServer(srv, transfer.NewSynthetic(data))
 	go srv.Serve(lis)
@@ -53,6 +53,22 @@ func inventoryAgent(t *testing.T) *Agent {
 		Lodging: lodgingv1.NewLodgingServiceClient(conn), Catalog: catalogv1.NewCatalogServiceClient(conn),
 		Transport: transportv1.NewTransportServiceClient(conn), Transfer: transferv1.NewTransferServiceClient(conn),
 	}, nil, nil)
+}
+
+// offlineCatalog keeps tests off the network: forecasts come from Open-Meteo.
+type offlineCatalog struct{ *catalog.OpenData }
+
+func (offlineCatalog) GetWeather(context.Context, *catalogv1.GetWeatherRequest) (*catalogv1.Weather, error) {
+	return &catalogv1.Weather{TempMaxC: 18, TempMinC: 10, Kind: catalogv1.Weather_KIND_CLIMATE_NORMAL}, nil
+}
+
+// say routes a message by rules and runs the turn the way HandleTurn does.
+func say(t *testing.T, a *Agent, p *plan.TripPlan, text string) {
+	t.Helper()
+	p.Apply(routeRules(*p, text, today).patch(), today)
+	if err := a.advance(context.Background(), p, &events{}, today); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // turn applies a patch the way HandleTurn does and assembles the trip.

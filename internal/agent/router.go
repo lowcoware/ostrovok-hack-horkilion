@@ -20,7 +20,8 @@ const routerPrompt = `Ты разбираешь сообщение путеше�
  "depart": дата отъезда YYYY-MM-DD, "nights": число ночей, "adults": число взрослых,
  "children": число детей, "child_ages": массив возрастов детей, если они названы,
  "pets": true если едут с животным, "budget_rub": бюджет на всю поездку в рублях}
-Сегодня %s. Текущие условия: %s`
+Если пользователь выбирает одно из предложенных направлений (по названию или по номеру), верни его название в destination.
+Сегодня %s. Текущие условия: %s. Предложенные направления: %s`
 
 // Router turns a user message into a plan patch: with the light LLM when it is
 // configured, with rules otherwise or when the LLM fails.
@@ -60,9 +61,13 @@ func (r Router) Route(ctx context.Context, p plan.TripPlan, text string, today t
 
 func (r Router) routeLLM(ctx context.Context, p plan.TripPlan, text string, today time.Time) (routed, error) {
 	constraints, _ := json.Marshal(p.Constraints)
+	suggested := make([]string, 0, len(p.DestinationOptions))
+	for i, o := range p.DestinationOptions {
+		suggested = append(suggested, fmt.Sprintf("%d. %s", i+1, o.Destination.Name))
+	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	out, err := r.llm.Complete(ctx, fmt.Sprintf(routerPrompt, today.Format(time.DateOnly), constraints), text)
+	out, err := r.llm.Complete(ctx, fmt.Sprintf(routerPrompt, today.Format(time.DateOnly), constraints, strings.Join(suggested, "; ")), text)
 	if err != nil {
 		return routed{}, err
 	}
@@ -125,7 +130,9 @@ func routeRules(cur plan.TripPlan, text string, today time.Time) routed {
 	lower := strings.ToLower(text)
 	trimmed := strings.TrimSpace(text)
 
-	if m := reCity.FindStringSubmatch(text); m != nil {
+	if d := pickDestination(cur, lower); d != "" {
+		p.Destination = ptr(d)
+	} else if m := reCity.FindStringSubmatch(text); m != nil {
 		p.Destination = ptr(m[1])
 	} else if cur.Constraints.Destination == "" && reBareCity.MatchString(trimmed) {
 		p.Destination = ptr(trimmed)
@@ -167,6 +174,32 @@ func routeRules(cur plan.TripPlan, text string, today time.Time) routed {
 		}
 	}
 	return p
+}
+
+var ordinals = []string{"перв", "втор", "трет", "четв", "пят"}
+
+// pickDestination finds which suggested destination the message chooses: by
+// an ordinal («второй вариант») or by the stem of its name, so that any case
+// of the name matches («в Анталию», «Анталья»).
+func pickDestination(cur plan.TripPlan, lower string) string {
+	opts := cur.DestinationOptions
+	if cur.Constraints.Destination != "" || len(opts) == 0 {
+		return ""
+	}
+	for _, o := range opts {
+		// Drop the ending: «Дубай» matches «в Дубае», «Сочи» stays whole.
+		name := []rune(strings.ToLower(o.Destination.Name))
+		stem := min(len(name), max(4, min(5, len(name)-1)))
+		if strings.Contains(lower, string(name[:stem])) {
+			return o.Destination.Name
+		}
+	}
+	for i, ord := range ordinals[:min(len(ordinals), len(opts))] {
+		if strings.Contains(lower, ord) {
+			return opts[i].Destination.Name
+		}
+	}
+	return ""
 }
 
 func ptr[T any](v T) *T { return &v }

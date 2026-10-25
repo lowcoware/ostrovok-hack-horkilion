@@ -34,7 +34,7 @@ import (
 
 const replyPrompt = `Ты агент Островка по планированию поездок. Отвечай по-русски, коротко и по делу.
 Решения принимай только по плану поездки (JSON ниже). Не выдумывай отели, цены и погоду, которых нет в плане.
-Если направления нет, задай один вопрос: куда ехать.
+Если направления нет, а в destination_options есть варианты, предложи их: для каждого почему подходит (explanation.why), чем придётся пожертвовать (tradeoffs), риски (risks), нужна ли виза (destination.visa), и спроси одним вопросом, куда ехать. Если вариантов нет, задай один вопрос: куда ехать.
 Варианты отелей лежат в components.stay.options. Предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски.
 Дорога туда и обратно лежит в components.outbound и components.return, трансферы — в components.transfer_arrival и components.transfer_departure. Пока пользователь не выбрал, поездка собрана из первого варианта каждого компонента: назови его и скажи, что можно выбрать другой.
 Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts, о каждой проверке из checks со статусом warn или fail (в том числе о визе) и о вариантах с флагом over_budget.
@@ -141,19 +141,19 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	}
 	changes := p.Apply(patch, today)
 
-	if p.SearchGate() {
-		p.FillDefaults(today)
-		if err := a.assemble(ctx, &p, ev); err != nil {
-			return fmt.Errorf("search hotels: %w", err)
-		}
-		if p.Weather == nil {
-			a.weather(ctx, &p)
-		}
+	if err := a.advance(ctx, &p, ev, today); err != nil {
+		return err
 	}
-	p.NextStage()
 	ev.emit("plan", p)
-	if p.Stage == plan.StageClarify {
+	switch p.Stage {
+	case plan.StageClarify:
 		ev.emit("clarify", platform.ClarifyData{Question: "Куда хотите поехать?", QuickReplies: cityExamples})
+	case plan.StageInspire:
+		names := make([]string, 0, len(p.DestinationOptions))
+		for _, o := range p.DestinationOptions {
+			names = append(names, o.Destination.Name)
+		}
+		ev.emit("clarify", platform.ClarifyData{Question: "Куда из этого поедем?", QuickReplies: names})
 	}
 
 	span.SetAttributes(attribute.String("langfuse.observation.metadata.stage", p.Stage))
@@ -181,6 +181,29 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 		"duration_ms": time.Since(started).Milliseconds(), "options": len(p.Components.Stay.Options), "llm": a.llm != nil,
 		"patch": len(msg.Patch) > 0,
 	})
+	return nil
+}
+
+// advance runs the deterministic part of a turn after the patch: inspire
+// without a destination, the trip assembly with one, then the stage gate.
+func (a *Agent) advance(ctx context.Context, p *plan.TripPlan, ev *events, today time.Time) error {
+	if p.SearchGate() {
+		p.FillDefaults(today)
+		if err := a.assemble(ctx, p, ev); err != nil {
+			return fmt.Errorf("search hotels: %w", err)
+		}
+		if p.Weather == nil {
+			a.weather(ctx, p)
+		}
+	} else {
+		p.FillDefaults(today)
+		ev.emit("status", platform.StatusData{Stage: plan.StageInspire, Text: "подбираю направления"})
+		// Best effort: without suggestions the agent asks where to go.
+		if err := a.inspire(ctx, p); err != nil {
+			p.DestinationOptions = []plan.DestinationOption{}
+		}
+	}
+	p.NextStage()
 	return nil
 }
 
@@ -284,6 +307,9 @@ var componentLabels = map[string]string{
 
 // templateReply answers without an LLM, from the plan alone.
 func templateReply(p plan.TripPlan, changes []string) string {
+	if !p.SearchGate() && len(p.DestinationOptions) > 0 {
+		return inspireReply(p)
+	}
 	if !p.SearchGate() {
 		return "Куда хотите поехать? Назовите город, а даты и состав гостей я предположу сам и покажу, что можно поправить."
 	}
@@ -347,6 +373,27 @@ func templateReply(p plan.TripPlan, changes []string) string {
 		fmt.Fprintf(&b, "Внимание: %s.\n", cf.Message)
 	}
 	b.WriteString("Цены и расписания синтетические.")
+	return b.String()
+}
+
+func inspireReply(p plan.TripPlan) string {
+	var b strings.Builder
+	b.WriteString("Вот куда можно поехать:\n")
+	for i, o := range p.DestinationOptions {
+		d, e := o.Destination, o.Explanation
+		fmt.Fprintf(&b, "%d. %s, %s. %s", i+1, d.Name, d.Country, e.Why)
+		if len(e.Tradeoffs) > 0 {
+			fmt.Fprintf(&b, " Минусы: %s.", strings.Join(e.Tradeoffs, ", "))
+		}
+		if len(e.Risks) > 0 {
+			fmt.Fprintf(&b, " Риски: %s.", strings.Join(e.Risks, ", "))
+		}
+		b.WriteString("\n")
+	}
+	for _, a := range p.Assumptions {
+		fmt.Fprintf(&b, "Допущение: %s = %s (%s). Можно поправить.\n", a.Field, a.Value, a.Reason)
+	}
+	b.WriteString("Куда из этого поедем? Оценки стоимости синтетические.")
 	return b.String()
 }
 
