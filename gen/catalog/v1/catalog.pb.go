@@ -22,6 +22,72 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type VisaRequirement_Status int32
+
+const (
+	VisaRequirement_STATUS_UNSPECIFIED VisaRequirement_Status = 0
+	// The passport is of the destination country.
+	VisaRequirement_STATUS_HOME            VisaRequirement_Status = 1
+	VisaRequirement_STATUS_VISA_FREE       VisaRequirement_Status = 2
+	VisaRequirement_STATUS_VISA_ON_ARRIVAL VisaRequirement_Status = 3
+	// Electronic travel authorisation (ESTA, eTA and similar).
+	VisaRequirement_STATUS_ETA           VisaRequirement_Status = 4
+	VisaRequirement_STATUS_E_VISA        VisaRequirement_Status = 5
+	VisaRequirement_STATUS_VISA_REQUIRED VisaRequirement_Status = 6
+	VisaRequirement_STATUS_NO_ADMISSION  VisaRequirement_Status = 7
+)
+
+// Enum value maps for VisaRequirement_Status.
+var (
+	VisaRequirement_Status_name = map[int32]string{
+		0: "STATUS_UNSPECIFIED",
+		1: "STATUS_HOME",
+		2: "STATUS_VISA_FREE",
+		3: "STATUS_VISA_ON_ARRIVAL",
+		4: "STATUS_ETA",
+		5: "STATUS_E_VISA",
+		6: "STATUS_VISA_REQUIRED",
+		7: "STATUS_NO_ADMISSION",
+	}
+	VisaRequirement_Status_value = map[string]int32{
+		"STATUS_UNSPECIFIED":     0,
+		"STATUS_HOME":            1,
+		"STATUS_VISA_FREE":       2,
+		"STATUS_VISA_ON_ARRIVAL": 3,
+		"STATUS_ETA":             4,
+		"STATUS_E_VISA":          5,
+		"STATUS_VISA_REQUIRED":   6,
+		"STATUS_NO_ADMISSION":    7,
+	}
+)
+
+func (x VisaRequirement_Status) Enum() *VisaRequirement_Status {
+	p := new(VisaRequirement_Status)
+	*p = x
+	return p
+}
+
+func (x VisaRequirement_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (VisaRequirement_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_catalog_v1_catalog_proto_enumTypes[0].Descriptor()
+}
+
+func (VisaRequirement_Status) Type() protoreflect.EnumType {
+	return &file_catalog_v1_catalog_proto_enumTypes[0]
+}
+
+func (x VisaRequirement_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use VisaRequirement_Status.Descriptor instead.
+func (VisaRequirement_Status) EnumDescriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{3, 0}
+}
+
 type Weather_Kind int32
 
 const (
@@ -57,11 +123,11 @@ func (x Weather_Kind) String() string {
 }
 
 func (Weather_Kind) Descriptor() protoreflect.EnumDescriptor {
-	return file_catalog_v1_catalog_proto_enumTypes[0].Descriptor()
+	return file_catalog_v1_catalog_proto_enumTypes[1].Descriptor()
 }
 
 func (Weather_Kind) Type() protoreflect.EnumType {
-	return &file_catalog_v1_catalog_proto_enumTypes[0]
+	return &file_catalog_v1_catalog_proto_enumTypes[1]
 }
 
 func (x Weather_Kind) Number() protoreflect.EnumNumber {
@@ -70,7 +136,7 @@ func (x Weather_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Weather_Kind.Descriptor instead.
 func (Weather_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{4, 0}
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{11, 0}
 }
 
 type SearchDestinationsRequest struct {
@@ -88,11 +154,14 @@ type SearchDestinationsRequest struct {
 	Tags []string `protobuf:"bytes,7,rep,name=tags,proto3" json:"tags,omitempty"`
 	// Longest acceptable one-way travel time, 0 for no limit.
 	MaxTravelHours float64 `protobuf:"fixed64,8,opt,name=max_travel_hours,json=maxTravelHours,proto3" json:"max_travel_hours,omitempty"`
-	// Only Russia and countries without a visa for Russian citizens.
-	RussiaAndVisaFreeOnly bool  `protobuf:"varint,9,opt,name=russia_and_visa_free_only,json=russiaAndVisaFreeOnly,proto3" json:"russia_and_visa_free_only,omitempty"`
-	Limit                 int32 `protobuf:"varint,10,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	Limit          int32   `protobuf:"varint,10,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Citizenship of the travellers, ISO 3166-1 alpha-2; empty means RU.
+	Citizenship string `protobuf:"bytes,11,opt,name=citizenship,proto3" json:"citizenship,omitempty"`
+	// Only destinations a holder of that passport enters without a visa:
+	// home country, visa free or visa on arrival.
+	VisaFreeOnly  bool `protobuf:"varint,12,opt,name=visa_free_only,json=visaFreeOnly,proto3" json:"visa_free_only,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SearchDestinationsRequest) Reset() {
@@ -181,18 +250,25 @@ func (x *SearchDestinationsRequest) GetMaxTravelHours() float64 {
 	return 0
 }
 
-func (x *SearchDestinationsRequest) GetRussiaAndVisaFreeOnly() bool {
-	if x != nil {
-		return x.RussiaAndVisaFreeOnly
-	}
-	return false
-}
-
 func (x *SearchDestinationsRequest) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *SearchDestinationsRequest) GetCitizenship() string {
+	if x != nil {
+		return x.Citizenship
+	}
+	return ""
+}
+
+func (x *SearchDestinationsRequest) GetVisaFreeOnly() bool {
+	if x != nil {
+		return x.VisaFreeOnly
+	}
+	return false
 }
 
 type SearchDestinationsResponse struct {
@@ -251,9 +327,10 @@ type Destination struct {
 	// Estimate of the whole trip: transport both ways and the stay.
 	EstimatedTotalRub int64 `protobuf:"varint,7,opt,name=estimated_total_rub,json=estimatedTotalRub,proto3" json:"estimated_total_rub,omitempty"`
 	// One-way travel time from the origin.
-	TravelHours   float64      `protobuf:"fixed64,8,opt,name=travel_hours,json=travelHours,proto3" json:"travel_hours,omitempty"`
-	Weather       *Weather     `protobuf:"bytes,9,opt,name=weather,proto3" json:"weather,omitempty"`
-	Sources       []*v1.Source `protobuf:"bytes,10,rep,name=sources,proto3" json:"sources,omitempty"`
+	TravelHours   float64          `protobuf:"fixed64,8,opt,name=travel_hours,json=travelHours,proto3" json:"travel_hours,omitempty"`
+	Weather       *Weather         `protobuf:"bytes,9,opt,name=weather,proto3" json:"weather,omitempty"`
+	Sources       []*v1.Source     `protobuf:"bytes,10,rep,name=sources,proto3" json:"sources,omitempty"`
+	Visa          *VisaRequirement `protobuf:"bytes,11,opt,name=visa,proto3" json:"visa,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -358,6 +435,392 @@ func (x *Destination) GetSources() []*v1.Source {
 	return nil
 }
 
+func (x *Destination) GetVisa() *VisaRequirement {
+	if x != nil {
+		return x.Visa
+	}
+	return nil
+}
+
+type VisaRequirement struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Passport, ISO 3166-1 alpha-2.
+	Citizenship string `protobuf:"bytes,1,opt,name=citizenship,proto3" json:"citizenship,omitempty"`
+	// Destination country, ISO 3166-1 alpha-2.
+	CountryCode string                 `protobuf:"bytes,2,opt,name=country_code,json=countryCode,proto3" json:"country_code,omitempty"`
+	Status      VisaRequirement_Status `protobuf:"varint,3,opt,name=status,proto3,enum=catalog.v1.VisaRequirement_Status" json:"status,omitempty"`
+	// Visa-free stay in days, 0 when unknown.
+	MaxStayDays   int32        `protobuf:"varint,4,opt,name=max_stay_days,json=maxStayDays,proto3" json:"max_stay_days,omitempty"`
+	Sources       []*v1.Source `protobuf:"bytes,5,rep,name=sources,proto3" json:"sources,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VisaRequirement) Reset() {
+	*x = VisaRequirement{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VisaRequirement) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VisaRequirement) ProtoMessage() {}
+
+func (x *VisaRequirement) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use VisaRequirement.ProtoReflect.Descriptor instead.
+func (*VisaRequirement) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *VisaRequirement) GetCitizenship() string {
+	if x != nil {
+		return x.Citizenship
+	}
+	return ""
+}
+
+func (x *VisaRequirement) GetCountryCode() string {
+	if x != nil {
+		return x.CountryCode
+	}
+	return ""
+}
+
+func (x *VisaRequirement) GetStatus() VisaRequirement_Status {
+	if x != nil {
+		return x.Status
+	}
+	return VisaRequirement_STATUS_UNSPECIFIED
+}
+
+func (x *VisaRequirement) GetMaxStayDays() int32 {
+	if x != nil {
+		return x.MaxStayDays
+	}
+	return 0
+}
+
+func (x *VisaRequirement) GetSources() []*v1.Source {
+	if x != nil {
+		return x.Sources
+	}
+	return nil
+}
+
+type GetVisaRequirementRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Citizenship   string                 `protobuf:"bytes,1,opt,name=citizenship,proto3" json:"citizenship,omitempty"`
+	CountryCode   string                 `protobuf:"bytes,2,opt,name=country_code,json=countryCode,proto3" json:"country_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetVisaRequirementRequest) Reset() {
+	*x = GetVisaRequirementRequest{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetVisaRequirementRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetVisaRequirementRequest) ProtoMessage() {}
+
+func (x *GetVisaRequirementRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetVisaRequirementRequest.ProtoReflect.Descriptor instead.
+func (*GetVisaRequirementRequest) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetVisaRequirementRequest) GetCitizenship() string {
+	if x != nil {
+		return x.Citizenship
+	}
+	return ""
+}
+
+func (x *GetVisaRequirementRequest) GetCountryCode() string {
+	if x != nil {
+		return x.CountryCode
+	}
+	return ""
+}
+
+type ListCountriesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCountriesRequest) Reset() {
+	*x = ListCountriesRequest{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCountriesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCountriesRequest) ProtoMessage() {}
+
+func (x *ListCountriesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCountriesRequest.ProtoReflect.Descriptor instead.
+func (*ListCountriesRequest) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{5}
+}
+
+type ListCountriesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Countries     []*Country             `protobuf:"bytes,1,rep,name=countries,proto3" json:"countries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCountriesResponse) Reset() {
+	*x = ListCountriesResponse{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCountriesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCountriesResponse) ProtoMessage() {}
+
+func (x *ListCountriesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCountriesResponse.ProtoReflect.Descriptor instead.
+func (*ListCountriesResponse) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListCountriesResponse) GetCountries() []*Country {
+	if x != nil {
+		return x.Countries
+	}
+	return nil
+}
+
+type Country struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// ISO 3166-1 alpha-2.
+	Code          string `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	NameRu        string `protobuf:"bytes,2,opt,name=name_ru,json=nameRu,proto3" json:"name_ru,omitempty"`
+	NameEn        string `protobuf:"bytes,3,opt,name=name_en,json=nameEn,proto3" json:"name_en,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Country) Reset() {
+	*x = Country{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Country) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Country) ProtoMessage() {}
+
+func (x *Country) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Country.ProtoReflect.Descriptor instead.
+func (*Country) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *Country) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+func (x *Country) GetNameRu() string {
+	if x != nil {
+		return x.NameRu
+	}
+	return ""
+}
+
+func (x *Country) GetNameEn() string {
+	if x != nil {
+		return x.NameEn
+	}
+	return ""
+}
+
+type SearchPlacesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name prefix, 2 to 100 characters.
+	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	// Empty means cities.
+	Kinds []v1.Place_Kind `protobuf:"varint,2,rep,packed,name=kinds,proto3,enum=common.v1.Place_Kind" json:"kinds,omitempty"`
+	// Up to 20, 0 means 10.
+	Limit         int32 `protobuf:"varint,3,opt,name=limit,proto3" json:"limit,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchPlacesRequest) Reset() {
+	*x = SearchPlacesRequest{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchPlacesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchPlacesRequest) ProtoMessage() {}
+
+func (x *SearchPlacesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchPlacesRequest.ProtoReflect.Descriptor instead.
+func (*SearchPlacesRequest) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *SearchPlacesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *SearchPlacesRequest) GetKinds() []v1.Place_Kind {
+	if x != nil {
+		return x.Kinds
+	}
+	return nil
+}
+
+func (x *SearchPlacesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+type SearchPlacesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Places        []*v1.Place            `protobuf:"bytes,1,rep,name=places,proto3" json:"places,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SearchPlacesResponse) Reset() {
+	*x = SearchPlacesResponse{}
+	mi := &file_catalog_v1_catalog_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SearchPlacesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchPlacesResponse) ProtoMessage() {}
+
+func (x *SearchPlacesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_catalog_v1_catalog_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchPlacesResponse.ProtoReflect.Descriptor instead.
+func (*SearchPlacesResponse) Descriptor() ([]byte, []int) {
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *SearchPlacesResponse) GetPlaces() []*v1.Place {
+	if x != nil {
+		return x.Places
+	}
+	return nil
+}
+
 type GetWeatherRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// City name, geocoded by the provider. Ignored when point is set.
@@ -371,7 +834,7 @@ type GetWeatherRequest struct {
 
 func (x *GetWeatherRequest) Reset() {
 	*x = GetWeatherRequest{}
-	mi := &file_catalog_v1_catalog_proto_msgTypes[3]
+	mi := &file_catalog_v1_catalog_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -383,7 +846,7 @@ func (x *GetWeatherRequest) String() string {
 func (*GetWeatherRequest) ProtoMessage() {}
 
 func (x *GetWeatherRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_catalog_v1_catalog_proto_msgTypes[3]
+	mi := &file_catalog_v1_catalog_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -396,7 +859,7 @@ func (x *GetWeatherRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWeatherRequest.ProtoReflect.Descriptor instead.
 func (*GetWeatherRequest) Descriptor() ([]byte, []int) {
-	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{3}
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetWeatherRequest) GetCity() string {
@@ -436,7 +899,7 @@ type Weather struct {
 
 func (x *Weather) Reset() {
 	*x = Weather{}
-	mi := &file_catalog_v1_catalog_proto_msgTypes[4]
+	mi := &file_catalog_v1_catalog_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -448,7 +911,7 @@ func (x *Weather) String() string {
 func (*Weather) ProtoMessage() {}
 
 func (x *Weather) ProtoReflect() protoreflect.Message {
-	mi := &file_catalog_v1_catalog_proto_msgTypes[4]
+	mi := &file_catalog_v1_catalog_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -461,7 +924,7 @@ func (x *Weather) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Weather.ProtoReflect.Descriptor instead.
 func (*Weather) Descriptor() ([]byte, []int) {
-	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{4}
+	return file_catalog_v1_catalog_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Weather) GetPlace() *v1.Place {
@@ -518,7 +981,7 @@ var File_catalog_v1_catalog_proto protoreflect.FileDescriptor
 const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"\n" +
 	"\x18catalog/v1/catalog.proto\x12\n" +
-	"catalog.v1\x1a\x16common/v1/common.proto\"\xec\x02\n" +
+	"catalog.v1\x1a\x16common/v1/common.proto\"\x9b\x03\n" +
 	"\x19SearchDestinationsRequest\x12\x16\n" +
 	"\x06origin\x18\x01 \x01(\tR\x06origin\x12\x1f\n" +
 	"\vdepart_date\x18\x02 \x01(\tR\n" +
@@ -530,12 +993,14 @@ const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"\n" +
 	"budget_rub\x18\x06 \x01(\x03R\tbudgetRub\x12\x12\n" +
 	"\x04tags\x18\a \x03(\tR\x04tags\x12(\n" +
-	"\x10max_travel_hours\x18\b \x01(\x01R\x0emaxTravelHours\x128\n" +
-	"\x19russia_and_visa_free_only\x18\t \x01(\bR\x15russiaAndVisaFreeOnly\x12\x14\n" +
+	"\x10max_travel_hours\x18\b \x01(\x01R\x0emaxTravelHours\x12\x14\n" +
 	"\x05limit\x18\n" +
-	" \x01(\x05R\x05limit\"Y\n" +
+	" \x01(\x05R\x05limit\x12 \n" +
+	"\vcitizenship\x18\v \x01(\tR\vcitizenship\x12$\n" +
+	"\x0evisa_free_only\x18\f \x01(\bR\fvisaFreeOnlyJ\x04\b\t\x10\n" +
+	"R\x19russia_and_visa_free_only\"Y\n" +
 	"\x1aSearchDestinationsResponse\x12;\n" +
-	"\fdestinations\x18\x01 \x03(\v2\x17.catalog.v1.DestinationR\fdestinations\"\xd9\x02\n" +
+	"\fdestinations\x18\x01 \x03(\v2\x17.catalog.v1.DestinationR\fdestinations\"\x8a\x03\n" +
 	"\vDestination\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -547,7 +1012,40 @@ const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"\ftravel_hours\x18\b \x01(\x01R\vtravelHours\x12-\n" +
 	"\aweather\x18\t \x01(\v2\x13.catalog.v1.WeatherR\aweather\x12+\n" +
 	"\asources\x18\n" +
-	" \x03(\v2\x11.common.v1.SourceR\asources\"f\n" +
+	" \x03(\v2\x11.common.v1.SourceR\asources\x12/\n" +
+	"\x04visa\x18\v \x01(\v2\x1b.catalog.v1.VisaRequirementR\x04visa\"\x9f\x03\n" +
+	"\x0fVisaRequirement\x12 \n" +
+	"\vcitizenship\x18\x01 \x01(\tR\vcitizenship\x12!\n" +
+	"\fcountry_code\x18\x02 \x01(\tR\vcountryCode\x12:\n" +
+	"\x06status\x18\x03 \x01(\x0e2\".catalog.v1.VisaRequirement.StatusR\x06status\x12\"\n" +
+	"\rmax_stay_days\x18\x04 \x01(\x05R\vmaxStayDays\x12+\n" +
+	"\asources\x18\x05 \x03(\v2\x11.common.v1.SourceR\asources\"\xb9\x01\n" +
+	"\x06Status\x12\x16\n" +
+	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vSTATUS_HOME\x10\x01\x12\x14\n" +
+	"\x10STATUS_VISA_FREE\x10\x02\x12\x1a\n" +
+	"\x16STATUS_VISA_ON_ARRIVAL\x10\x03\x12\x0e\n" +
+	"\n" +
+	"STATUS_ETA\x10\x04\x12\x11\n" +
+	"\rSTATUS_E_VISA\x10\x05\x12\x18\n" +
+	"\x14STATUS_VISA_REQUIRED\x10\x06\x12\x17\n" +
+	"\x13STATUS_NO_ADMISSION\x10\a\"`\n" +
+	"\x19GetVisaRequirementRequest\x12 \n" +
+	"\vcitizenship\x18\x01 \x01(\tR\vcitizenship\x12!\n" +
+	"\fcountry_code\x18\x02 \x01(\tR\vcountryCode\"\x16\n" +
+	"\x14ListCountriesRequest\"J\n" +
+	"\x15ListCountriesResponse\x121\n" +
+	"\tcountries\x18\x01 \x03(\v2\x13.catalog.v1.CountryR\tcountries\"O\n" +
+	"\aCountry\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\x12\x17\n" +
+	"\aname_ru\x18\x02 \x01(\tR\x06nameRu\x12\x17\n" +
+	"\aname_en\x18\x03 \x01(\tR\x06nameEn\"n\n" +
+	"\x13SearchPlacesRequest\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12+\n" +
+	"\x05kinds\x18\x02 \x03(\x0e2\x15.common.v1.Place.KindR\x05kinds\x12\x14\n" +
+	"\x05limit\x18\x03 \x01(\x05R\x05limit\"@\n" +
+	"\x14SearchPlacesResponse\x12(\n" +
+	"\x06places\x18\x01 \x03(\v2\x10.common.v1.PlaceR\x06places\"f\n" +
 	"\x11GetWeatherRequest\x12\x12\n" +
 	"\x04city\x18\x01 \x01(\tR\x04city\x12)\n" +
 	"\x05point\x18\x02 \x01(\v2\x13.common.v1.GeoPointR\x05point\x12\x12\n" +
@@ -565,11 +1063,14 @@ const file_catalog_v1_catalog_proto_rawDesc = "" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rKIND_FORECAST\x10\x01\x12\x17\n" +
-	"\x13KIND_CLIMATE_NORMAL\x10\x022\xb7\x01\n" +
+	"\x13KIND_CLIMATE_NORMAL\x10\x022\xba\x03\n" +
 	"\x0eCatalogService\x12c\n" +
 	"\x12SearchDestinations\x12%.catalog.v1.SearchDestinationsRequest\x1a&.catalog.v1.SearchDestinationsResponse\x12@\n" +
 	"\n" +
-	"GetWeather\x12\x1d.catalog.v1.GetWeatherRequest\x1a\x13.catalog.v1.WeatherB$Z\"horkilion/gen/catalog/v1;catalogv1b\x06proto3"
+	"GetWeather\x12\x1d.catalog.v1.GetWeatherRequest\x1a\x13.catalog.v1.Weather\x12X\n" +
+	"\x12GetVisaRequirement\x12%.catalog.v1.GetVisaRequirementRequest\x1a\x1b.catalog.v1.VisaRequirement\x12T\n" +
+	"\rListCountries\x12 .catalog.v1.ListCountriesRequest\x1a!.catalog.v1.ListCountriesResponse\x12Q\n" +
+	"\fSearchPlaces\x12\x1f.catalog.v1.SearchPlacesRequest\x1a .catalog.v1.SearchPlacesResponseB$Z\"horkilion/gen/catalog/v1;catalogv1b\x06proto3"
 
 var (
 	file_catalog_v1_catalog_proto_rawDescOnce sync.Once
@@ -583,39 +1084,60 @@ func file_catalog_v1_catalog_proto_rawDescGZIP() []byte {
 	return file_catalog_v1_catalog_proto_rawDescData
 }
 
-var file_catalog_v1_catalog_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_catalog_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_catalog_v1_catalog_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_catalog_v1_catalog_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_catalog_v1_catalog_proto_goTypes = []any{
-	(Weather_Kind)(0),                  // 0: catalog.v1.Weather.Kind
-	(*SearchDestinationsRequest)(nil),  // 1: catalog.v1.SearchDestinationsRequest
-	(*SearchDestinationsResponse)(nil), // 2: catalog.v1.SearchDestinationsResponse
-	(*Destination)(nil),                // 3: catalog.v1.Destination
-	(*GetWeatherRequest)(nil),          // 4: catalog.v1.GetWeatherRequest
-	(*Weather)(nil),                    // 5: catalog.v1.Weather
-	(*v1.Travelers)(nil),               // 6: common.v1.Travelers
-	(*v1.Place)(nil),                   // 7: common.v1.Place
-	(*v1.Source)(nil),                  // 8: common.v1.Source
-	(*v1.GeoPoint)(nil),                // 9: common.v1.GeoPoint
+	(VisaRequirement_Status)(0),        // 0: catalog.v1.VisaRequirement.Status
+	(Weather_Kind)(0),                  // 1: catalog.v1.Weather.Kind
+	(*SearchDestinationsRequest)(nil),  // 2: catalog.v1.SearchDestinationsRequest
+	(*SearchDestinationsResponse)(nil), // 3: catalog.v1.SearchDestinationsResponse
+	(*Destination)(nil),                // 4: catalog.v1.Destination
+	(*VisaRequirement)(nil),            // 5: catalog.v1.VisaRequirement
+	(*GetVisaRequirementRequest)(nil),  // 6: catalog.v1.GetVisaRequirementRequest
+	(*ListCountriesRequest)(nil),       // 7: catalog.v1.ListCountriesRequest
+	(*ListCountriesResponse)(nil),      // 8: catalog.v1.ListCountriesResponse
+	(*Country)(nil),                    // 9: catalog.v1.Country
+	(*SearchPlacesRequest)(nil),        // 10: catalog.v1.SearchPlacesRequest
+	(*SearchPlacesResponse)(nil),       // 11: catalog.v1.SearchPlacesResponse
+	(*GetWeatherRequest)(nil),          // 12: catalog.v1.GetWeatherRequest
+	(*Weather)(nil),                    // 13: catalog.v1.Weather
+	(*v1.Travelers)(nil),               // 14: common.v1.Travelers
+	(*v1.Place)(nil),                   // 15: common.v1.Place
+	(*v1.Source)(nil),                  // 16: common.v1.Source
+	(v1.Place_Kind)(0),                 // 17: common.v1.Place.Kind
+	(*v1.GeoPoint)(nil),                // 18: common.v1.GeoPoint
 }
 var file_catalog_v1_catalog_proto_depIdxs = []int32{
-	6,  // 0: catalog.v1.SearchDestinationsRequest.travelers:type_name -> common.v1.Travelers
-	3,  // 1: catalog.v1.SearchDestinationsResponse.destinations:type_name -> catalog.v1.Destination
-	7,  // 2: catalog.v1.Destination.place:type_name -> common.v1.Place
-	5,  // 3: catalog.v1.Destination.weather:type_name -> catalog.v1.Weather
-	8,  // 4: catalog.v1.Destination.sources:type_name -> common.v1.Source
-	9,  // 5: catalog.v1.GetWeatherRequest.point:type_name -> common.v1.GeoPoint
-	7,  // 6: catalog.v1.Weather.place:type_name -> common.v1.Place
-	0,  // 7: catalog.v1.Weather.kind:type_name -> catalog.v1.Weather.Kind
-	8,  // 8: catalog.v1.Weather.sources:type_name -> common.v1.Source
-	1,  // 9: catalog.v1.CatalogService.SearchDestinations:input_type -> catalog.v1.SearchDestinationsRequest
-	4,  // 10: catalog.v1.CatalogService.GetWeather:input_type -> catalog.v1.GetWeatherRequest
-	2,  // 11: catalog.v1.CatalogService.SearchDestinations:output_type -> catalog.v1.SearchDestinationsResponse
-	5,  // 12: catalog.v1.CatalogService.GetWeather:output_type -> catalog.v1.Weather
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	14, // 0: catalog.v1.SearchDestinationsRequest.travelers:type_name -> common.v1.Travelers
+	4,  // 1: catalog.v1.SearchDestinationsResponse.destinations:type_name -> catalog.v1.Destination
+	15, // 2: catalog.v1.Destination.place:type_name -> common.v1.Place
+	13, // 3: catalog.v1.Destination.weather:type_name -> catalog.v1.Weather
+	16, // 4: catalog.v1.Destination.sources:type_name -> common.v1.Source
+	5,  // 5: catalog.v1.Destination.visa:type_name -> catalog.v1.VisaRequirement
+	0,  // 6: catalog.v1.VisaRequirement.status:type_name -> catalog.v1.VisaRequirement.Status
+	16, // 7: catalog.v1.VisaRequirement.sources:type_name -> common.v1.Source
+	9,  // 8: catalog.v1.ListCountriesResponse.countries:type_name -> catalog.v1.Country
+	17, // 9: catalog.v1.SearchPlacesRequest.kinds:type_name -> common.v1.Place.Kind
+	15, // 10: catalog.v1.SearchPlacesResponse.places:type_name -> common.v1.Place
+	18, // 11: catalog.v1.GetWeatherRequest.point:type_name -> common.v1.GeoPoint
+	15, // 12: catalog.v1.Weather.place:type_name -> common.v1.Place
+	1,  // 13: catalog.v1.Weather.kind:type_name -> catalog.v1.Weather.Kind
+	16, // 14: catalog.v1.Weather.sources:type_name -> common.v1.Source
+	2,  // 15: catalog.v1.CatalogService.SearchDestinations:input_type -> catalog.v1.SearchDestinationsRequest
+	12, // 16: catalog.v1.CatalogService.GetWeather:input_type -> catalog.v1.GetWeatherRequest
+	6,  // 17: catalog.v1.CatalogService.GetVisaRequirement:input_type -> catalog.v1.GetVisaRequirementRequest
+	7,  // 18: catalog.v1.CatalogService.ListCountries:input_type -> catalog.v1.ListCountriesRequest
+	10, // 19: catalog.v1.CatalogService.SearchPlaces:input_type -> catalog.v1.SearchPlacesRequest
+	3,  // 20: catalog.v1.CatalogService.SearchDestinations:output_type -> catalog.v1.SearchDestinationsResponse
+	13, // 21: catalog.v1.CatalogService.GetWeather:output_type -> catalog.v1.Weather
+	5,  // 22: catalog.v1.CatalogService.GetVisaRequirement:output_type -> catalog.v1.VisaRequirement
+	8,  // 23: catalog.v1.CatalogService.ListCountries:output_type -> catalog.v1.ListCountriesResponse
+	11, // 24: catalog.v1.CatalogService.SearchPlaces:output_type -> catalog.v1.SearchPlacesResponse
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_catalog_v1_catalog_proto_init() }
@@ -628,8 +1150,8 @@ func file_catalog_v1_catalog_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_catalog_v1_catalog_proto_rawDesc), len(file_catalog_v1_catalog_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   5,
+			NumEnums:      2,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

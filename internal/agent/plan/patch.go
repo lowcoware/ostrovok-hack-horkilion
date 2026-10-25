@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,8 @@ const (
 	DefaultNights   = 3
 	DefaultAdults   = 2
 	DefaultChildAge = 7
+	// DefaultCitizenship is assumed until the traveller names another passport.
+	DefaultCitizenship = "RU"
 )
 
 // Patch changes the plan. Text messages (through the router) and manual edits
@@ -23,6 +26,7 @@ const (
 type Patch struct {
 	Origin      *string           `json:"origin,omitempty"`
 	Destination *string           `json:"destination,omitempty"`
+	Citizenship *string           `json:"citizenship,omitempty"`
 	Dates       *DatesPatch       `json:"dates,omitempty"`
 	Adults      *int32            `json:"adults,omitempty"`
 	ChildAges   *[]int32          `json:"child_ages,omitempty"`
@@ -49,6 +53,7 @@ type PreferencesPatch struct {
 	TransportModes   *[]string `json:"transport_modes,omitempty"`
 	MaxTravelHours   *float64  `json:"max_travel_hours,omitempty"`
 	Moods            *[]string `json:"moods,omitempty"`
+	VisaFreeOnly     *bool     `json:"visa_free_only,omitempty"`
 }
 
 type Selection struct {
@@ -57,13 +62,14 @@ type Selection struct {
 }
 
 var (
+	countryCode    = regexp.MustCompile(`^[A-Z]{2}$`)
 	meals          = []string{"room_only", "breakfast", "half_board", "all_inclusive"}
 	transportModes = []string{"air", "rail"}
 )
 
 // Empty reports whether the patch changes nothing.
 func (p Patch) Empty() bool {
-	return p.Origin == nil && p.Destination == nil && p.Dates == nil && p.Adults == nil && p.ChildAges == nil &&
+	return p.Origin == nil && p.Destination == nil && p.Citizenship == nil && p.Dates == nil && p.Adults == nil && p.ChildAges == nil &&
 		p.Pets == nil && p.Budget == nil && p.Preferences == nil && p.Select == nil
 }
 
@@ -78,6 +84,9 @@ func (p Patch) Validate() error {
 		if s != nil && (strings.TrimSpace(*s) == "" || utf8.RuneCountInString(*s) > 100) {
 			return fmt.Errorf("%s must be 1 to 100 characters", name)
 		}
+	}
+	if p.Citizenship != nil && !countryCode.MatchString(*p.Citizenship) {
+		return errors.New("citizenship must be an ISO 3166-1 alpha-2 code, e.g. RU")
 	}
 	if d := p.Dates; d != nil {
 		for name, s := range map[string]*string{"dates.depart": d.Depart, "dates.return": d.Return} {
@@ -146,6 +155,9 @@ func (p Patch) Validate() error {
 //	meal, cancellation -> stay
 //	transport modes    -> outbound, return
 //	budget             -> nothing: totals and over_budget flags are recomputed
+//	citizenship        -> destination options, visa and visa checks; hotels and transport stay
+//	visa_free_only     -> destination options
+//	nights             -> the visa-free stay check is recomputed (spec 0002)
 var (
 	allComponents   = ComponentNames
 	transportStale  = []string{Outbound, Return, TransferArrival, TransferDeparture}
@@ -167,7 +179,15 @@ func (p *TripPlan) Apply(patch Patch, today time.Time) []string {
 		c.Destination = strings.TrimSpace(*v)
 		p.Components = Components{}
 		p.Weather = nil
+		p.clearVisa()
 		p.normalize()
+	}
+	if v := patch.Citizenship; v != nil && countryCode.MatchString(*v) && *v != c.Citizenship {
+		c.Citizenship = *v
+		p.dropAssumption("citizenship")
+		p.DestinationOptions = []DestinationOption{}
+		p.clearVisa()
+		changes = append(changes, "гражданство изменилось: визы и варианты направлений пересчитываются")
 	}
 	if v := patch.Origin; v != nil && strings.TrimSpace(*v) != "" && *v != c.Origin {
 		c.Origin = strings.TrimSpace(*v)
@@ -297,6 +317,15 @@ func (p *TripPlan) applyPreferences(pr PreferencesPatch) []string {
 	if v := pr.Moods; v != nil {
 		prefs.Moods = slices.Clone(*v)
 	}
+	if v := pr.VisaFreeOnly; v != nil && *v != prefs.VisaFreeOnly {
+		prefs.VisaFreeOnly = *v
+		p.DestinationOptions = []DestinationOption{}
+		if *v {
+			changes = append(changes, "подбор только по странам без визы")
+		} else {
+			changes = append(changes, "в подбор добавлены страны с визой")
+		}
+	}
 	return changes
 }
 
@@ -355,6 +384,10 @@ func (p *TripPlan) SearchGate() bool {
 // records each one as an assumption.
 func (p *TripPlan) FillDefaults(today time.Time) {
 	c := &p.Constraints
+	if c.Citizenship == "" {
+		c.Citizenship = DefaultCitizenship
+		p.addAssumption("citizenship", DefaultCitizenship, "гражданство не названо")
+	}
 	if c.Dates.Depart == "" {
 		c.Dates.Depart = today.AddDate(0, 0, DefaultLeadDays).Format(time.DateOnly)
 		p.addAssumption("dates.depart", c.Dates.Depart, fmt.Sprintf("даты не названы, взяли отъезд через %d дней", DefaultLeadDays))
@@ -416,6 +449,7 @@ func (p *TripPlan) recompute() {
 		}
 	}
 	p.TotalRub = total
+	p.updateVisaChecks()
 	budget := p.Constraints.Budget
 	p.OverBudget = budget != nil && total > budget.AmountRub
 	for _, name := range ComponentNames {
@@ -456,4 +490,76 @@ func OptionTitle(o Option) string {
 		return "Трансфер " + o.Transfer.From.Name + " → " + o.Transfer.To.Name
 	}
 	return o.ID
+}
+
+// Visa check kinds, see Check.kind in api/openapi.yaml.
+const (
+	CheckVisa         = "visa"
+	CheckVisaFreeStay = "stay_within_visa_free_days"
+)
+
+// SetVisa stores the visa requirement of the chosen destination. nil means it
+// could not be checked (catalog unavailable or the pair is not in the data):
+// the plan then carries a warning instead of silently passing.
+func (p *TripPlan) SetVisa(v *VisaRequirement) {
+	p.Visa = v
+	p.dropChecks(CheckVisa, CheckVisaFreeStay)
+	if v == nil {
+		p.Checks = append(p.Checks, Check{
+			Kind: CheckVisa, Status: "warn", Message: "Не удалось проверить визовый режим.", Components: []string{},
+		})
+		return
+	}
+	p.updateVisaChecks()
+}
+
+func (p *TripPlan) clearVisa() {
+	p.Visa = nil
+	p.dropChecks(CheckVisa, CheckVisaFreeStay)
+}
+
+var visaMessages = map[string]string{
+	VisaHome:        "Своя страна, виза не нужна.",
+	VisaFree:        "Виза не нужна.",
+	VisaOnArrival:   "Виза оформляется по прилёту.",
+	VisaETA:         "Нужно электронное разрешение на въезд, оформляется онлайн до поездки.",
+	VisaElectronic:  "Нужна электронная виза, оформляется онлайн до поездки.",
+	VisaRequired:    "Нужна виза, оформляется в консульстве до поездки.",
+	VisaNoAdmission: "Въезд для граждан этой страны закрыт.",
+}
+
+// updateVisaChecks derives the visa checks from p.Visa and the trip length
+// (spec 0002, runtime behaviour step 6). Without p.Visa existing checks stay.
+func (p *TripPlan) updateVisaChecks() {
+	v := p.Visa
+	if v == nil {
+		return
+	}
+	p.dropChecks(CheckVisa, CheckVisaFreeStay)
+	status := "ok"
+	switch v.Status {
+	case VisaETA, VisaElectronic:
+		status = "warn"
+	case VisaRequired, VisaNoAdmission:
+		status = "fail"
+	}
+	msg := visaMessages[v.Status]
+	if v.VisaFree() && v.MaxStayDays > 0 && v.Status != VisaHome {
+		msg = fmt.Sprintf("%s Без визы можно находиться до %d дней.", msg, v.MaxStayDays)
+	}
+	p.Checks = append(p.Checks, Check{Kind: CheckVisa, Status: status, Message: msg, Components: []string{}})
+
+	if !v.VisaFree() || v.Status == VisaHome {
+		return
+	}
+	stay := Check{Kind: CheckVisaFreeStay, Status: "ok", Message: "Поездка укладывается в безвизовый срок.", Components: []string{Stay}}
+	if nights := p.Constraints.Dates.Nights; v.MaxStayDays > 0 && nights > v.MaxStayDays {
+		stay.Status = "fail"
+		stay.Message = fmt.Sprintf("Поездка %d ночей длиннее безвизового срока %d дней.", nights, v.MaxStayDays)
+	}
+	p.Checks = append(p.Checks, stay)
+}
+
+func (p *TripPlan) dropChecks(kinds ...string) {
+	p.Checks = slices.DeleteFunc(p.Checks, func(c Check) bool { return slices.Contains(kinds, c.Kind) })
 }

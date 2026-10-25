@@ -244,6 +244,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Страны
+         * @description Справочник для выбора гражданства. Отсортирован по названию, первой идёт Россия.
+         */
+        get: operations["listCountries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Подсказки мест
+         * @description Подсказки города отправления, до 10 штук.
+         */
+        get: operations["searchPlaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/sources": {
         parameters: {
             query?: never;
@@ -410,6 +450,8 @@ export interface components {
             components: components["schemas"]["Components"];
             /** @description Погода в направлении на дату отправления, если направление выбрано. */
             weather?: components["schemas"]["Weather"];
+            /** @description Визовый режим в страну выбранного направления для гражданства путешественника. */
+            visa?: components["schemas"]["VisaRequirement"];
             checks: components["schemas"]["Check"][];
             conflicts: components["schemas"]["Conflict"][];
             /**
@@ -426,6 +468,8 @@ export interface components {
             origin?: string;
             /** @description Направление, пусто, пока не выбрано. */
             destination?: string;
+            /** @description Гражданство путешественника (ISO 3166-1 alpha-2). Визы считаются по нему. Пока не названо, агент берёт `RU` допущением. */
+            citizenship?: string;
             dates: components["schemas"]["Dates"];
             adults?: number;
             /** @description Возраст каждого ребёнка, лет. */
@@ -459,6 +503,8 @@ export interface components {
         TransportMode: "air" | "rail";
         Preferences: {
             meal?: components["schemas"]["Meal"];
+            /** @description Подбирать только направления без визы для гражданства путешественника (`home`, `visa_free`, `visa_on_arrival`). По умолчанию `true`. */
+            visa_free_only: boolean;
             free_cancellation?: boolean;
             /** @description Пусто — любой вид транспорта. */
             transport_modes: components["schemas"]["TransportMode"][];
@@ -469,6 +515,7 @@ export interface components {
         };
         PreferencesPatch: {
             meal?: components["schemas"]["Meal"];
+            visa_free_only?: boolean;
             free_cancellation?: boolean;
             transport_modes?: components["schemas"]["TransportMode"][];
             max_travel_hours?: number;
@@ -556,7 +603,7 @@ export interface components {
         /** @description Проверка стыковки компонентов. */
         Check: {
             /** @enum {string} */
-            kind: "arrival_before_checkin" | "transfer_fits" | "checkout_before_departure" | "dates_consistent";
+            kind: "arrival_before_checkin" | "transfer_fits" | "checkout_before_departure" | "dates_consistent" | "visa" | "stay_within_visa_free_days";
             /** @enum {string} */
             status: "ok" | "warn" | "fail";
             message: string;
@@ -576,6 +623,7 @@ export interface components {
         PlanPatch: {
             origin?: string;
             destination?: string;
+            citizenship?: string;
             dates?: components["schemas"]["Dates"];
             adults?: number;
             child_ages?: number[];
@@ -602,7 +650,35 @@ export interface components {
             /** @description Время в пути в одну сторону. */
             travel_hours: number;
             weather?: components["schemas"]["Weather"];
+            visa: components["schemas"]["VisaRequirement"];
             sources: components["schemas"]["Source"][];
+        };
+        /**
+         * @description `home` — своя страна; `visa_free` — без визы; `visa_on_arrival` — виза по прилёту; `eta` — электронное
+         *     разрешение; `e_visa` — электронная виза; `visa_required` — нужна виза; `no_admission` — въезд закрыт.
+         * @enum {string}
+         */
+        VisaStatus: "home" | "visa_free" | "visa_on_arrival" | "eta" | "e_visa" | "visa_required" | "no_admission";
+        VisaRequirement: {
+            /** @description Гражданство (паспорт). */
+            citizenship: string;
+            /** @description Страна назначения. */
+            country_code: string;
+            status: components["schemas"]["VisaStatus"];
+            /** @description Безвизовый срок, если известен. */
+            max_stay_days?: number;
+            sources: components["schemas"]["Source"][];
+        };
+        Country: {
+            code: string;
+            /** @description Название по-русски. */
+            name: string;
+        };
+        CountryList: {
+            countries: components["schemas"]["Country"][];
+        };
+        PlaceList: {
+            places: components["schemas"]["Place"][];
         };
         Weather: {
             place: components["schemas"]["Place"];
@@ -1226,6 +1302,50 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+        };
+    };
+    listCountries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Страны. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountryList"];
+                };
+            };
+        };
+    };
+    searchPlaces: {
+        parameters: {
+            query: {
+                query: string;
+                kind?: "city";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Найденные места. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
         };
     };
     listSources: {
