@@ -79,6 +79,14 @@
   RPC `GetVisaRequirement`, `ListCountries`, `SearchPlaces`, поля 11 и 12 в `SearchDestinationsRequest`,
   поле 9 `russia_and_visa_free_only` зарезервировано; в плане гражданство по умолчанию `RU` допущением, смена
   гражданства сбрасывает варианты направлений и визу, отели не трогает. (`406708b`)
+- Загрузка снапшота данных в `inventory` (`P1-BE-02`): провайдеры читают данные из файлов при старте, битый
+  снапшот останавливает сервис. Технически: пакет `internal/dataset` — наборы CFC-3, `manifest.json` с
+  `records` и `sha256`, реестр `sources.yaml`, проверка ссылок между наборами и индексы; переменная `DATA_DIR`
+  (по умолчанию `/data`); тестовый снапшот `internal/dataset/testdata/snapshot` (9 направлений, визы
+  passport-index-data, климат Open-Meteo, отели OSM, тестовые тарифы) лежит в образе `inventory` до появления
+  `data/snapshot`; в спеке 0003 — точная структура `calibration`. (`c0b924e`)
+
+
 ### Изменено
 
 - План проекта перестроен под три роли и новую географию. Технически: `docs/roadmap.md` и `docs/spec.md` —
