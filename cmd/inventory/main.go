@@ -44,7 +44,7 @@ func run() error {
 		"destinations", len(data.Destinations), "hotels", len(data.Hotels))
 
 	catalogSrv, err := platform.Provider("CATALOG_PROVIDER", "open-data", map[string]func() catalogv1.CatalogServiceServer{
-		"open-data": func() catalogv1.CatalogServiceServer { return catalog.NewOpenData() },
+		"open-data": func() catalogv1.CatalogServiceServer { return catalog.NewOpenData(data) },
 	})
 	if err != nil {
 		return err

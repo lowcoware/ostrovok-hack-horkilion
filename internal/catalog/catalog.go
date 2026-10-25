@@ -4,6 +4,7 @@ package catalog
 import (
 	"context"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -14,17 +15,49 @@ import (
 
 	catalogv1 "horkilion/gen/catalog/v1"
 	commonv1 "horkilion/gen/common/v1"
+	"horkilion/internal/dataset"
 )
 
-// OpenData is the provider "open-data": weather from Open-Meteo. Destinations
-// from open datasets come in phase 1.
+// OpenData is the provider "open-data": destinations, visas, countries and
+// places from the data snapshot, forecasts from Open-Meteo.
 type OpenData struct {
 	catalogv1.UnimplementedCatalogServiceServer
-	weather *Weather
+	weather   *Weather
+	data      *dataset.Data
+	countries []*catalogv1.Country
+	routes    map[string]dataset.Route
+	rail      map[string]dataset.RailRoute
 }
 
-func NewOpenData() *OpenData {
-	return &OpenData{weather: NewWeather()}
+func NewOpenData(data *dataset.Data) *OpenData {
+	s := &OpenData{weather: NewWeather(), data: data, routes: map[string]dataset.Route{}, rail: map[string]dataset.RailRoute{}}
+	for _, c := range data.Countries {
+		s.countries = append(s.countries, &catalogv1.Country{Code: c.Code, NameRu: c.NameRu, NameEn: c.NameEn})
+	}
+	slices.SortFunc(s.countries, func(a, b *catalogv1.Country) int {
+		if (a.Code == "RU") != (b.Code == "RU") {
+			if a.Code == "RU" {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(fold(a.NameRu), fold(b.NameRu))
+	})
+	// Routes and rail routes work both ways.
+	for _, r := range data.Routes {
+		s.routes[r.FromIATA+"/"+r.ToIATA] = r
+		if _, ok := s.routes[r.ToIATA+"/"+r.FromIATA]; !ok {
+			s.routes[r.ToIATA+"/"+r.FromIATA] = dataset.Route{FromIATA: r.ToIATA, ToIATA: r.FromIATA, DistanceKm: r.DistanceKm, Direct: r.Direct}
+		}
+	}
+	for _, r := range data.RailRoutes {
+		s.rail[r.FromStation+"/"+r.ToStation] = r
+		if _, ok := s.rail[r.ToStation+"/"+r.FromStation]; !ok {
+			s.rail[r.ToStation+"/"+r.FromStation] = dataset.RailRoute{FromStation: r.ToStation, ToStation: r.FromStation,
+				DurationMin: r.DurationMin, Departures: r.Departures, TrainNumbers: r.TrainNumbers}
+		}
+	}
+	return s
 }
 
 func (s *OpenData) GetWeather(ctx context.Context, req *catalogv1.GetWeatherRequest) (*catalogv1.Weather, error) {
