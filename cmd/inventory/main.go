@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -14,6 +15,7 @@ import (
 	transferv1 "horkilion/gen/transfer/v1"
 	transportv1 "horkilion/gen/transport/v1"
 	"horkilion/internal/catalog"
+	"horkilion/internal/dataset"
 	"horkilion/internal/lodging"
 	"horkilion/internal/platform"
 	"horkilion/internal/transfer"
@@ -32,6 +34,14 @@ func main() {
 func run() error {
 	ctx, stop := platform.SignalContext()
 	defer stop()
+
+	dataDir := platform.Env("DATA_DIR", "/data")
+	data, err := dataset.Load(dataDir)
+	if err != nil {
+		return fmt.Errorf("load data snapshot from %s: %w", dataDir, err)
+	}
+	slog.Info("data snapshot loaded", "dir", dataDir, "built_at", data.Manifest.BuiltAt,
+		"destinations", len(data.Destinations), "hotels", len(data.Hotels))
 
 	catalogSrv, err := platform.Provider("CATALOG_PROVIDER", "open-data", map[string]func() catalogv1.CatalogServiceServer{
 		"open-data": func() catalogv1.CatalogServiceServer { return catalog.NewOpenData() },

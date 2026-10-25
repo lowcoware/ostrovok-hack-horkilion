@@ -72,11 +72,12 @@ data/
   loaders/<источник>/       скрипты загрузки, по каталогу на источник
   overrides/                ручные правки поверх источников (visa.csv и т. п.)
   reports/                  отчёты сверки источников (например, visa-diff.md)
-  sources.yaml              реестр источников: и взятых, и рассмотренных
+  sources.yaml              реестр источников: и взятых, и рассмотренных (build.py кладёт копию в snapshot/)
   build.py                  собирает snapshot/ из loaders/ и overrides/
   validate.py               проверяет snapshot/ по схемам ниже
   snapshot/
     manifest.json
+    sources.yaml            копия реестра: по ней бэкенд раскрывает имена из `sources` (вид, ссылка, лицензия)
     <набор>.jsonl
 ```
 
@@ -126,7 +127,32 @@ data/
 | `hotels` | `id`, `destination_id`, `name`, `lat`, `lon`, `stars?`, `check_in_time?`, `check_out_time?`, `pets?`, `osm_id`, `sources` | `P1-DS-05` | `lodging` провайдер `osm` |
 | `routes` | `from_iata`, `to_iata`, `distance_km`, `direct` | `P1-DS-06` | `transport`, время в пути |
 | `rail_routes` | `from_station`, `to_station`, `duration_min`, `departures[]` (`HH:MM`), `train_numbers[]` | `P1-DS-06` | `transport`, ж/д |
-| `calibration` | одна строка, один объект: цены за место по звёздам и уровню цен страны, сезонные коэффициенты, тарифы авиа за км, тарифы такси, курсы валют ЦБ, туристический налог по городам | `P1-DS-07` | синтетика цен во всех провайдерах |
+| `calibration` | одна строка, один объект; поля — в блоке ниже | `P1-DS-07` | синтетика цен во всех провайдерах |
+
+Структура `calibration` (все деньги в рублях; уровень цен страны — множитель к российскому):
+
+```json
+{
+  "bed_price_rub": {"2": 1900, "3": 2700, "4": 4200, "5": 7500},
+  "country_price_level": {"RU": 1.0, "TR": 0.9},
+  "season_factor": [1.1, 1.0, 1.0, 1.0, 1.15, 1.35, 1.35, 1.35, 1.15, 1.0, 1.0, 1.25],
+  "airfare": {"base_rub": 2500, "rub_per_km_short": 7, "rub_per_km_long": 5, "long_from_km": 2000, "transfer_minutes": 120},
+  "rail": {"rub_per_hour": 450},
+  "transfer": {"taxi_base_rub": 300, "taxi_rub_per_km": 40, "pets_surcharge_rub": 500,
+               "shuttle_rub_per_person": 700, "public_rub_per_person": 120},
+  "fx_rub": {"USD": 0.0},
+  "tourist_tax_rub_per_night": {"sochi": 100},
+  "sources": ["..."]
+}
+```
+
+- `bed_price_rub` — цена за гостя за ночь по звёздам на российском уровне; `country_price_level` — для каждой страны каталога;
+- `season_factor` — 12 множителей, январь первым;
+- `airfare.transfer_minutes` — время на пересадку при стыковке рейсов;
+- `tourist_tax_rub_per_night` — по `id` города, только где налог введён;
+- `fx_rub` — курсы ЦБ РФ на дату сборки, справочно.
+
+Типы и проверки — `internal/dataset/dataset.go`; бэкенд не стартует, если нет 12 сезонных множителей, цены для 2–5 звёзд или уровня цен страны любого направления.
 
 Проверки:
 
