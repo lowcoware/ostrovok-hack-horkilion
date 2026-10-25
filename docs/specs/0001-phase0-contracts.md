@@ -223,3 +223,7 @@ message Source {
 ## Открытые вопросы
 
 Нет. Вопрос о моделях и ключах (roadmap, Q-001) на контракт не влияет: провайдер настраивается переменными `LLM_*`.
+
+## Изменения после мержа
+
+- **2026-10-25.** Поле `catalog.v1.SearchDestinationsRequest.russia_and_visa_free_only` и правило «только Россия и безвиз» заменяются гражданством и фильтром `visa_free_only` — [спека 0002](0002-visa-and-citizenship.md), [ADR 0003](../adr/0003-visa-by-citizenship.md).
