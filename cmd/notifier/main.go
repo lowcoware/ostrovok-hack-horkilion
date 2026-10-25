@@ -63,7 +63,7 @@ func run() error {
 		slog.Info("notification: booking confirmed",
 			"order_id", ev.ID, "session_id", ev.SessionID, "items", len(ev.Items), "total_rub", ev.TotalRub)
 		an.Track("checkout_completed", ev.SessionID, "checkout", map[string]any{
-			"order_id": ev.ID, "total_rub": ev.TotalRub, "items": len(ev.Items),
+			"order_id": ev.ID, "total_rub": ev.TotalRub, "items": len(ev.Items), "full_trip": ev.FullTrip(),
 		})
 		_ = msg.Ack()
 	})

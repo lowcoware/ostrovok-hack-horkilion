@@ -121,7 +121,7 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	if err != nil {
 		return fmt.Errorf("load plan: %w", err)
 	}
-	prevStage := p.Stage
+	prevStage, firstTurn := p.Stage, p.Version == 0
 	ev.emit("status", platform.StatusData{Stage: p.Stage, Text: "разбираю запрос"})
 
 	var patch plan.Patch
@@ -139,6 +139,10 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	} else {
 		patch = a.router.Route(ctx, p, msg.Text, today)
 		a.resolvePlaces(ctx, &patch)
+	}
+	var prevSelected string
+	if s := patch.Select; s != nil && p.Components.Get(s.Component) != nil {
+		prevSelected = p.Components.Get(s.Component).SelectedID
 	}
 	changes := p.Apply(patch, today)
 
@@ -172,17 +176,47 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	ev.emit("plan", p)
 	ev.emit("done", platform.DoneData{Text: reply, Stage: p.Stage})
 
-	if p.Stage != prevStage {
-		a.analytics.Track("stage_entered", p.SessionID, p.Stage, map[string]any{"from": prevStage})
-	}
-	if len(changes) > 0 {
-		a.analytics.Track("plan_rebuilt", p.SessionID, p.Stage, map[string]any{"invalidated": changes})
+	for _, e := range funnelEvents(p, prevStage, firstTurn, patch.Select, prevSelected, changes) {
+		a.analytics.Track(e.name, p.SessionID, p.Stage, e.props)
 	}
 	a.analytics.Track("turn_completed", p.SessionID, p.Stage, map[string]any{
 		"duration_ms": time.Since(started).Milliseconds(), "options": len(p.Components.Stay.Options), "llm": a.llm != nil,
 		"patch": len(msg.Patch) > 0,
 	})
 	return nil
+}
+
+type funnelEvent struct {
+	name  string
+	props map[string]any
+}
+
+// funnelEvents are the funnel events of a finished turn (ADR 0001,
+// «Аналитика»): the first turn starts the session, stage changes and
+// selections are recorded, rebuilds carry what was invalidated.
+func funnelEvents(p plan.TripPlan, prevStage string, firstTurn bool, sel *plan.Selection, prevSelected string, changes []string) []funnelEvent {
+	var out []funnelEvent
+	if firstTurn {
+		out = append(out, funnelEvent{"session_started", map[string]any{"citizenship": p.Constraints.Citizenship}})
+	}
+	if p.Stage != prevStage {
+		out = append(out, funnelEvent{"stage_entered", map[string]any{"from": prevStage}})
+	}
+	if sel != nil {
+		if comp := p.Components.Get(sel.Component); comp != nil && comp.SelectedID == sel.OptionID && prevSelected != sel.OptionID {
+			price := int64(0)
+			if o := comp.Selected(); o != nil {
+				price = o.PriceRub
+			}
+			out = append(out, funnelEvent{"option_selected", map[string]any{
+				"component": sel.Component, "option_id": sel.OptionID, "price_rub": price, "total_rub": p.TotalRub,
+			}})
+		}
+	}
+	if len(changes) > 0 {
+		out = append(out, funnelEvent{"plan_rebuilt", map[string]any{"invalidated": changes}})
+	}
+	return out
 }
 
 // advance runs the deterministic part of a turn after the patch: inspire
