@@ -1,0 +1,13 @@
+{"city_id": "sochi", "country_code": "RU", "iata": "AER", "lat": 43.4499, "lon": 39.9566, "name": "Sochi International Airport", "scheduled": true, "timezone": "Europe/Moscow"}
+{"city_id": "almaty", "country_code": "KZ", "iata": "ALA", "lat": 43.3543, "lon": 77.0428, "name": "Almaty International Airport", "scheduled": true, "timezone": "Asia/Almaty"}
+{"city_id": "antalya", "country_code": "TR", "iata": "AYT", "lat": 36.8987, "lon": 30.8005, "name": "Antalya International Airport", "scheduled": true, "timezone": "Europe/Istanbul"}
+{"city_id": "paris", "country_code": "FR", "iata": "CDG", "lat": 49.009, "lon": 2.5541, "name": "Charles de Gaulle International Airport", "scheduled": true, "timezone": "Europe/Paris"}
+{"city_id": "dubai", "country_code": "AE", "iata": "DXB", "lat": 25.2498, "lon": 55.371, "name": "Dubai International Airport", "scheduled": true, "timezone": "Asia/Dubai"}
+{"city_id": "hurghada", "country_code": "EG", "iata": "HRG", "lat": 27.1768, "lon": 33.7967, "name": "Hurghada International Airport", "scheduled": true, "timezone": "Africa/Cairo"}
+{"city_id": "kaliningrad", "country_code": "RU", "iata": "KGD", "lat": 54.8916, "lon": 20.5986, "name": "Khrabrovo Airport", "scheduled": true, "timezone": "Europe/Kaliningrad"}
+{"city_id": "kazan", "country_code": "RU", "iata": "KZN", "lat": 55.6062, "lon": 49.2787, "name": "Kazan International Airport", "scheduled": true, "timezone": "Europe/Moscow"}
+{"city_id": "saint-petersburg", "country_code": "RU", "iata": "LED", "lat": 59.8003, "lon": 30.2625, "name": "Pulkovo Airport", "scheduled": true, "timezone": "Europe/Moscow"}
+{"city_id": "minsk", "country_code": "BY", "iata": "MSQ", "lat": 53.8881, "lon": 28.04, "name": "Minsk National Airport", "scheduled": true, "timezone": "Europe/Minsk"}
+{"city_id": "beijing", "country_code": "CN", "iata": "PEK", "lat": 40.0773, "lon": 116.5967, "name": "Beijing Capital International Airport", "scheduled": true, "timezone": "Asia/Shanghai"}
+{"city_id": "moscow", "country_code": "RU", "iata": "SVO", "lat": 55.9775, "lon": 37.3867, "name": "Sheremetyevo International Airport", "scheduled": true, "timezone": "Europe/Moscow"}
+{"city_id": "tbilisi", "country_code": "GE", "iata": "TBS", "lat": 41.6692, "lon": 44.9547, "name": "Tbilisi International Airport", "scheduled": true, "timezone": "Asia/Tbilisi"}

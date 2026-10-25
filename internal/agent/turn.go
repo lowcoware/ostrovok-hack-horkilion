@@ -24,6 +24,8 @@ import (
 
 	catalogv1 "horkilion/gen/catalog/v1"
 	lodgingv1 "horkilion/gen/lodging/v1"
+	transferv1 "horkilion/gen/transfer/v1"
+	transportv1 "horkilion/gen/transport/v1"
 	"horkilion/internal/agent/plan"
 	"horkilion/internal/analytics"
 	"horkilion/internal/platform"
@@ -32,9 +34,10 @@ import (
 
 const replyPrompt = `Ты агент Островка по планированию поездок. Отвечай по-русски, коротко и по делу.
 Решения принимай только по плану поездки (JSON ниже). Не выдумывай отели, цены и погоду, которых нет в плане.
-Если направления нет, задай один вопрос: куда ехать.
+Если направления нет, а в destination_options есть варианты, предложи их: для каждого почему подходит (explanation.why), чем придётся пожертвовать (tradeoffs), риски (risks), нужна ли виза (destination.visa), и спроси одним вопросом, куда ехать. Если вариантов нет, задай один вопрос: куда ехать.
 Варианты отелей лежат в components.stay.options. Предложи до трёх. Для каждого объясни, почему он подходит, чем пришлось пожертвовать и какие есть риски.
-Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts и о вариантах с флагом over_budget.
+Дорога туда и обратно лежит в components.outbound и components.return, трансферы — в components.transfer_arrival и components.transfer_departure. Пока пользователь не выбрал, поездка собрана из первого варианта каждого компонента: назови его и скажи, что можно выбрать другой.
+Назови допущения из assumptions и предложи их поправить. Сообщи о каждом конфликте из conflicts, о каждой проверке из checks со статусом warn или fail (в том числе о визе) и о вариантах с флагом over_budget.
 Если у данных в sources есть kind "synthetic", одной фразой скажи, что это синтетические данные. Чтобы оформить поездку, пользователь выбирает отель и нажимает «Оформить».`
 
 const historyLimit = 10
@@ -61,13 +64,23 @@ type Agent struct {
 	rules     Rules
 	lodging   lodgingv1.LodgingServiceClient
 	catalog   catalogv1.CatalogServiceClient
+	transport transportv1.TransportServiceClient
+	transfer  transferv1.TransferServiceClient
 	nc        *nats.Conn
 	analytics *analytics.Client
 }
 
-func New(store *Store, llm *LLM, rules Rules, lodging lodgingv1.LodgingServiceClient, catalog catalogv1.CatalogServiceClient,
-	nc *nats.Conn, an *analytics.Client) *Agent {
-	return &Agent{store: store, router: Router{llm: llm}, llm: llm, rules: rules, lodging: lodging, catalog: catalog, nc: nc, analytics: an}
+// Suppliers are the inventory clients the agent calls.
+type Suppliers struct {
+	Lodging   lodgingv1.LodgingServiceClient
+	Catalog   catalogv1.CatalogServiceClient
+	Transport transportv1.TransportServiceClient
+	Transfer  transferv1.TransferServiceClient
+}
+
+func New(store *Store, llm *LLM, rules Rules, s Suppliers, nc *nats.Conn, an *analytics.Client) *Agent {
+	return &Agent{store: store, router: Router{llm: llm}, llm: llm, rules: rules, lodging: s.Lodging, catalog: s.Catalog,
+		transport: s.Transport, transfer: s.Transfer, nc: nc, analytics: an}
 }
 
 // HandleTurn runs one turn. A returned error means the turn should be retried.
@@ -108,7 +121,7 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	if err != nil {
 		return fmt.Errorf("load plan: %w", err)
 	}
-	prevStage := p.Stage
+	prevStage, firstTurn := p.Stage, p.Version == 0
 	ev.emit("status", platform.StatusData{Stage: p.Stage, Text: "разбираю запрос"})
 
 	var patch plan.Patch
@@ -125,25 +138,27 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 		userText = "Правка плана: " + string(msg.Patch)
 	} else {
 		patch = a.router.Route(ctx, p, msg.Text, today)
+		a.resolvePlaces(ctx, &patch)
+	}
+	var prevSelected string
+	if s := patch.Select; s != nil && p.Components.Get(s.Component) != nil {
+		prevSelected = p.Components.Get(s.Component).SelectedID
 	}
 	changes := p.Apply(patch, today)
 
-	if p.SearchGate() {
-		p.FillDefaults(today)
-		if p.NeedsSearch(plan.Stay) {
-			ev.emit("status", platform.StatusData{Stage: plan.StageSearch, Text: "ищу отели"})
-			if err := a.searchStay(ctx, &p); err != nil {
-				return fmt.Errorf("search hotels: %w", err)
-			}
-		}
-		if p.Weather == nil {
-			a.weather(ctx, &p)
-		}
+	if err := a.advance(ctx, &p, ev, today); err != nil {
+		return err
 	}
-	p.NextStage()
 	ev.emit("plan", p)
-	if p.Stage == plan.StageClarify {
+	switch p.Stage {
+	case plan.StageClarify:
 		ev.emit("clarify", platform.ClarifyData{Question: "Куда хотите поехать?", QuickReplies: cityExamples})
+	case plan.StageInspire:
+		names := make([]string, 0, len(p.DestinationOptions))
+		for _, o := range p.DestinationOptions {
+			names = append(names, o.Destination.Name)
+		}
+		ev.emit("clarify", platform.ClarifyData{Question: "Куда из этого поедем?", QuickReplies: names})
 	}
 
 	span.SetAttributes(attribute.String("langfuse.observation.metadata.stage", p.Stage))
@@ -161,16 +176,69 @@ func (a *Agent) HandleTurn(ctx context.Context, msg platform.TurnMessage) (err e
 	ev.emit("plan", p)
 	ev.emit("done", platform.DoneData{Text: reply, Stage: p.Stage})
 
-	if p.Stage != prevStage {
-		a.analytics.Track("stage_entered", p.SessionID, p.Stage, map[string]any{"from": prevStage})
-	}
-	if len(changes) > 0 {
-		a.analytics.Track("plan_rebuilt", p.SessionID, p.Stage, map[string]any{"invalidated": changes})
+	for _, e := range funnelEvents(p, prevStage, firstTurn, patch.Select, prevSelected, changes) {
+		a.analytics.Track(e.name, p.SessionID, p.Stage, e.props)
 	}
 	a.analytics.Track("turn_completed", p.SessionID, p.Stage, map[string]any{
 		"duration_ms": time.Since(started).Milliseconds(), "options": len(p.Components.Stay.Options), "llm": a.llm != nil,
 		"patch": len(msg.Patch) > 0,
 	})
+	return nil
+}
+
+type funnelEvent struct {
+	name  string
+	props map[string]any
+}
+
+// funnelEvents are the funnel events of a finished turn (ADR 0001,
+// «Аналитика»): the first turn starts the session, stage changes and
+// selections are recorded, rebuilds carry what was invalidated.
+func funnelEvents(p plan.TripPlan, prevStage string, firstTurn bool, sel *plan.Selection, prevSelected string, changes []string) []funnelEvent {
+	var out []funnelEvent
+	if firstTurn {
+		out = append(out, funnelEvent{"session_started", map[string]any{"citizenship": p.Constraints.Citizenship}})
+	}
+	if p.Stage != prevStage {
+		out = append(out, funnelEvent{"stage_entered", map[string]any{"from": prevStage}})
+	}
+	if sel != nil {
+		if comp := p.Components.Get(sel.Component); comp != nil && comp.SelectedID == sel.OptionID && prevSelected != sel.OptionID {
+			price := int64(0)
+			if o := comp.Selected(); o != nil {
+				price = o.PriceRub
+			}
+			out = append(out, funnelEvent{"option_selected", map[string]any{
+				"component": sel.Component, "option_id": sel.OptionID, "price_rub": price, "total_rub": p.TotalRub,
+			}})
+		}
+	}
+	if len(changes) > 0 {
+		out = append(out, funnelEvent{"plan_rebuilt", map[string]any{"invalidated": changes}})
+	}
+	return out
+}
+
+// advance runs the deterministic part of a turn after the patch: inspire
+// without a destination, the trip assembly with one, then the stage gate.
+func (a *Agent) advance(ctx context.Context, p *plan.TripPlan, ev *events, today time.Time) error {
+	if p.SearchGate() {
+		p.FillDefaults(today)
+		if err := a.assemble(ctx, p, ev); err != nil {
+			return fmt.Errorf("search hotels: %w", err)
+		}
+		if p.Weather == nil {
+			a.weather(ctx, p)
+		}
+	} else {
+		p.FillDefaults(today)
+		ev.emit("status", platform.StatusData{Stage: plan.StageInspire, Text: "подбираю направления"})
+		// Best effort: without suggestions the agent asks where to go.
+		if err := a.inspire(ctx, p); err != nil {
+			p.DestinationOptions = []plan.DestinationOption{}
+		}
+	}
+	p.NextStage()
 	return nil
 }
 
@@ -268,8 +336,15 @@ var mealNames = map[string]string{
 	"room_only": "без питания", "breakfast": "завтрак", "half_board": "завтрак и ужин", "all_inclusive": "всё включено",
 }
 
+var componentLabels = map[string]string{
+	plan.Outbound: "Туда", plan.TransferArrival: "Трансфер до отеля", plan.TransferDeparture: "Трансфер к отправлению", plan.Return: "Обратно",
+}
+
 // templateReply answers without an LLM, from the plan alone.
 func templateReply(p plan.TripPlan, changes []string) string {
+	if !p.SearchGate() && len(p.DestinationOptions) > 0 {
+		return inspireReply(p)
+	}
 	if !p.SearchGate() {
 		return "Куда хотите поехать? Назовите город, а даты и состав гостей я предположу сам и покажу, что можно поправить."
 	}
@@ -316,13 +391,44 @@ func templateReply(p plan.TripPlan, changes []string) string {
 			b.WriteString(".\n")
 		}
 	}
+	for _, name := range []string{plan.Outbound, plan.TransferArrival, plan.TransferDeparture, plan.Return} {
+		if o := p.Components.Get(name).Effective(); o != nil {
+			fmt.Fprintf(&b, "%s: %s, %d ₽.\n", componentLabels[name], plan.OptionTitle(*o), o.PriceRub)
+		}
+	}
+	for _, c := range p.Checks {
+		if c.Status != "ok" {
+			fmt.Fprintf(&b, "Проверка: %s\n", c.Message)
+		}
+	}
 	for _, a := range p.Assumptions {
 		fmt.Fprintf(&b, "Допущение: %s = %s (%s). Можно поправить.\n", a.Field, a.Value, a.Reason)
 	}
 	for _, cf := range p.Conflicts {
 		fmt.Fprintf(&b, "Внимание: %s.\n", cf.Message)
 	}
-	b.WriteString("Данные об отелях синтетические.")
+	b.WriteString("Цены и расписания синтетические.")
+	return b.String()
+}
+
+func inspireReply(p plan.TripPlan) string {
+	var b strings.Builder
+	b.WriteString("Вот куда можно поехать:\n")
+	for i, o := range p.DestinationOptions {
+		d, e := o.Destination, o.Explanation
+		fmt.Fprintf(&b, "%d. %s, %s. %s", i+1, d.Name, d.Country, e.Why)
+		if len(e.Tradeoffs) > 0 {
+			fmt.Fprintf(&b, " Минусы: %s.", strings.Join(e.Tradeoffs, ", "))
+		}
+		if len(e.Risks) > 0 {
+			fmt.Fprintf(&b, " Риски: %s.", strings.Join(e.Risks, ", "))
+		}
+		b.WriteString("\n")
+	}
+	for _, a := range p.Assumptions {
+		fmt.Fprintf(&b, "Допущение: %s = %s (%s). Можно поправить.\n", a.Field, a.Value, a.Reason)
+	}
+	b.WriteString("Куда из этого поедем? Оценки стоимости синтетические.")
 	return b.String()
 }
 

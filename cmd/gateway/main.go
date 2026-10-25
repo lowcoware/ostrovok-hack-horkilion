@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,6 +11,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	bookingv1 "horkilion/gen/booking/v1"
+	catalogv1 "horkilion/gen/catalog/v1"
+	"horkilion/internal/dataset"
 	"horkilion/internal/gateway"
 	"horkilion/internal/platform"
 )
@@ -52,9 +55,24 @@ func run() error {
 	}
 	defer bookingConn.Close()
 
+	invConn, err := platform.DialGRPC(platform.Env("INVENTORY_ADDR", "inventory:9000"))
+	if err != nil {
+		return err
+	}
+	defer invConn.Close()
+	// The "Откуда данные" page comes from the registry of the same snapshot inventory serves.
+	// impulse: the gateway loads the whole snapshot to validate the registry, read only manifest.json and sources.yaml when the snapshot outgrows the gateway's memory.
+	data, err := dataset.Load(platform.Env("DATA_DIR", "/data"))
+	if err != nil {
+		return fmt.Errorf("load data snapshot: %w", err)
+	}
+
 	platform.StartOps(ctx, platform.PostgresReady(db), platform.NATSReady(nc))
-	gw := gateway.New(gateway.NewPGStore(db), gateway.NATSTurns{JS: js}, gateway.NATSEvents{NC: nc},
-		bookingv1.NewBookingServiceClient(bookingConn))
+	gw := gateway.New(gateway.NewPGStore(db), gateway.NATSTurns{JS: js}, gateway.NATSEvents{NC: nc}, gateway.Deps{
+		Booking: bookingv1.NewBookingServiceClient(bookingConn),
+		Catalog: catalogv1.NewCatalogServiceClient(invConn),
+		Sources: gateway.Providers(data.Sources),
+	})
 	srv := &http.Server{
 		Addr:              platform.Env("HTTP_ADDR", ":8080"),
 		Handler:           gw.Router(),

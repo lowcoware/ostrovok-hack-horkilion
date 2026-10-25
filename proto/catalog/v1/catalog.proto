@@ -6,10 +6,18 @@ import "common/v1/common.proto";
 
 option go_package = "horkilion/gen/catalog/v1;catalogv1";
 
-// CatalogService suggests destinations and tells the weather there.
+// CatalogService suggests destinations, tells the weather there and answers
+// reference questions: visa requirements, countries and places.
 service CatalogService {
   rpc SearchDestinations(SearchDestinationsRequest) returns (SearchDestinationsResponse);
   rpc GetWeather(GetWeatherRequest) returns (Weather);
+  // GetVisaRequirement tells whether a holder of the citizenship passport needs
+  // a visa for the country. Unknown codes are INVALID_ARGUMENT, a pair missing
+  // from the data is NOT_FOUND.
+  rpc GetVisaRequirement(GetVisaRequirementRequest) returns (VisaRequirement);
+  rpc ListCountries(ListCountriesRequest) returns (ListCountriesResponse);
+  // SearchPlaces suggests places by name prefix, e.g. the departure city.
+  rpc SearchPlaces(SearchPlacesRequest) returns (SearchPlacesResponse);
 }
 
 message SearchDestinationsRequest {
@@ -26,9 +34,14 @@ message SearchDestinationsRequest {
   repeated string tags = 7;
   // Longest acceptable one-way travel time, 0 for no limit.
   double max_travel_hours = 8;
-  // Only Russia and countries without a visa for Russian citizens.
-  bool russia_and_visa_free_only = 9;
+  reserved 9;
+  reserved "russia_and_visa_free_only";
   int32 limit = 10;
+  // Citizenship of the travellers, ISO 3166-1 alpha-2; empty means RU.
+  string citizenship = 11;
+  // Only destinations a holder of that passport enters without a visa:
+  // home country, visa free or visa on arrival.
+  bool visa_free_only = 12;
 }
 
 message SearchDestinationsResponse {
@@ -49,6 +62,62 @@ message Destination {
   double travel_hours = 8;
   Weather weather = 9;
   repeated common.v1.Source sources = 10;
+  VisaRequirement visa = 11;
+}
+
+message VisaRequirement {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    // The passport is of the destination country.
+    STATUS_HOME = 1;
+    STATUS_VISA_FREE = 2;
+    STATUS_VISA_ON_ARRIVAL = 3;
+    // Electronic travel authorisation (ESTA, eTA and similar).
+    STATUS_ETA = 4;
+    STATUS_E_VISA = 5;
+    STATUS_VISA_REQUIRED = 6;
+    STATUS_NO_ADMISSION = 7;
+  }
+
+  // Passport, ISO 3166-1 alpha-2.
+  string citizenship = 1;
+  // Destination country, ISO 3166-1 alpha-2.
+  string country_code = 2;
+  Status status = 3;
+  // Visa-free stay in days, 0 when unknown.
+  int32 max_stay_days = 4;
+  repeated common.v1.Source sources = 5;
+}
+
+message GetVisaRequirementRequest {
+  string citizenship = 1;
+  string country_code = 2;
+}
+
+message ListCountriesRequest {}
+
+message ListCountriesResponse {
+  repeated Country countries = 1;
+}
+
+message Country {
+  // ISO 3166-1 alpha-2.
+  string code = 1;
+  string name_ru = 2;
+  string name_en = 3;
+}
+
+message SearchPlacesRequest {
+  // Name prefix, 2 to 100 characters.
+  string query = 1;
+  // Empty means cities.
+  repeated common.v1.Place.Kind kinds = 2;
+  // Up to 20, 0 means 10.
+  int32 limit = 3;
+}
+
+message SearchPlacesResponse {
+  repeated common.v1.Place places = 1;
 }
 
 message GetWeatherRequest {

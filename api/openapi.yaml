@@ -241,7 +241,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: |
-            Заказ не создан: `nothing_selected`, если в плане нет выбранных вариантов;
+            Заказ не создан: `nothing_selected`, если в плане не выбран отель;
             `offer_unavailable`, если выбранный вариант больше не предлагается;
             `price_changed`, если цена изменилась (`details` — `PriceChangedDetails`).
           content:
@@ -279,6 +279,43 @@ paths:
               schema: { $ref: "#/components/schemas/Order" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /countries:
+    get:
+      tags: [sources]
+      operationId: listCountries
+      summary: Страны
+      description: Справочник для выбора гражданства. Отсортирован по названию, первой идёт Россия.
+      security: []
+      responses:
+        "200":
+          description: Страны.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CountryList" }
+  /places:
+    get:
+      tags: [sources]
+      operationId: searchPlaces
+      summary: Подсказки мест
+      description: Подсказки города отправления, до 10 штук.
+      security: []
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 100 }
+        - name: kind
+          in: query
+          required: false
+          schema: { type: string, enum: [city], default: city }
+      responses:
+        "200":
+          description: Найденные места.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PlaceList" }
+        "400": { $ref: "#/components/responses/BadRequest" }
 
   /sources:
     get:
@@ -567,6 +604,9 @@ components:
         weather:
           description: Погода в направлении на дату отправления, если направление выбрано.
           $ref: "#/components/schemas/Weather"
+        visa:
+          description: Визовый режим в страну выбранного направления для гражданства путешественника.
+          $ref: "#/components/schemas/VisaRequirement"
         checks:
           type: array
           items: { $ref: "#/components/schemas/Check" }
@@ -576,10 +616,10 @@ components:
         total_rub:
           type: integer
           format: int64
-          description: Сумма выбранных вариантов всех компонентов.
+          description: Сумма корзины — выбранного отеля и дороги с трансферами, из которых собрана поездка (выбранный вариант или первый, пока пользователь не выбрал).
         over_budget:
           type: boolean
-          description: Сумма выбранного больше бюджета.
+          description: Сумма корзины больше бюджета.
     Constraints:
       type: object
       description: Что известно о поездке. Неизвестное отсутствует.
@@ -591,6 +631,10 @@ components:
         destination:
           type: string
           description: Направление, пусто, пока не выбрано.
+        citizenship:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: Гражданство путешественника (ISO 3166-1 alpha-2). Визы считаются по нему. Пока не названо, агент берёт `RU` допущением.
         dates: { $ref: "#/components/schemas/Dates" }
         adults:
           type: integer
@@ -643,9 +687,12 @@ components:
       enum: [air, rail]
     Preferences:
       type: object
-      required: [transport_modes, moods]
+      required: [transport_modes, moods, visa_free_only]
       properties:
         meal: { $ref: "#/components/schemas/Meal" }
+        visa_free_only:
+          type: boolean
+          description: Подбирать только направления без визы для гражданства путешественника (`home`, `visa_free`, `visa_on_arrival`). По умолчанию `true`.
         free_cancellation: { type: boolean }
         transport_modes:
           type: array
@@ -662,6 +709,7 @@ components:
       type: object
       properties:
         meal: { $ref: "#/components/schemas/Meal" }
+        visa_free_only: { type: boolean }
         free_cancellation: { type: boolean }
         transport_modes:
           type: array
@@ -790,7 +838,13 @@ components:
       properties:
         kind:
           type: string
-          enum: [arrival_before_checkin, transfer_fits, checkout_before_departure, dates_consistent]
+          enum:
+            - arrival_before_checkin
+            - transfer_fits
+            - checkout_before_departure
+            - dates_consistent
+            - visa
+            - stay_within_visa_free_days
         status:
           type: string
           enum: [ok, warn, fail]
@@ -822,6 +876,7 @@ components:
       properties:
         origin: { type: string, minLength: 1, maxLength: 100 }
         destination: { type: string, minLength: 1, maxLength: 100 }
+        citizenship: { type: string, pattern: "^[A-Z]{2}$" }
         dates: { $ref: "#/components/schemas/Dates" }
         adults: { type: integer, minimum: 1, maximum: 10 }
         child_ages:
@@ -841,7 +896,7 @@ components:
     # ---------------------------------------------------------------- supplier entities
     Destination:
       type: object
-      required: [id, name, country, country_code, place, tags, estimated_total_rub, travel_hours, sources]
+      required: [id, name, country, country_code, place, tags, estimated_total_rub, travel_hours, visa, sources]
       properties:
         id: { type: string }
         name: { type: string }
@@ -859,9 +914,60 @@ components:
           type: number
           description: Время в пути в одну сторону.
         weather: { $ref: "#/components/schemas/Weather" }
+        visa: { $ref: "#/components/schemas/VisaRequirement" }
         sources:
           type: array
           items: { $ref: "#/components/schemas/Source" }
+    VisaStatus:
+      type: string
+      enum: [home, visa_free, visa_on_arrival, eta, e_visa, visa_required, no_admission]
+      description: |
+        `home` — своя страна; `visa_free` — без визы; `visa_on_arrival` — виза по прилёту; `eta` — электронное
+        разрешение; `e_visa` — электронная виза; `visa_required` — нужна виза; `no_admission` — въезд закрыт.
+    VisaRequirement:
+      type: object
+      required: [citizenship, country_code, status, sources]
+      properties:
+        citizenship:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: Гражданство (паспорт).
+        country_code:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          description: Страна назначения.
+        status: { $ref: "#/components/schemas/VisaStatus" }
+        max_stay_days:
+          type: integer
+          minimum: 1
+          description: Безвизовый срок, если известен.
+        sources:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/Source" }
+    Country:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, pattern: "^[A-Z]{2}$" }
+        name:
+          type: string
+          description: Название по-русски.
+    CountryList:
+      type: object
+      required: [countries]
+      properties:
+        countries:
+          type: array
+          items: { $ref: "#/components/schemas/Country" }
+    PlaceList:
+      type: object
+      required: [places]
+      properties:
+        places:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/Place" }
     Weather:
       type: object
       required: [place, date, temp_max_c, temp_min_c, precipitation_mm, kind, sources]

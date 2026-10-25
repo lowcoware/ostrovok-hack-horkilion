@@ -1,0 +1,82 @@
+{
+  "built_at": "2026-10-25T21:25:19Z",
+  "datasets": [
+    {
+      "name": "countries",
+      "file": "countries.jsonl",
+      "records": 9,
+      "sha256": "565f085762853b47246602481fc2b1a7ba57437a6e4d3b70020f144e67918131",
+      "schema_version": 1
+    },
+    {
+      "name": "visa",
+      "file": "visa.jsonl",
+      "records": 27,
+      "sha256": "47c5a8ef59bbe91e0f752f26a30b1b20edde48996ee3a51c20406a5fa3ba4911",
+      "schema_version": 1
+    },
+    {
+      "name": "cities",
+      "file": "cities.jsonl",
+      "records": 13,
+      "sha256": "5780b956d9e2dcc23cfa78a1020bd760477fd11acd5fb36e6a44994dce4e9188",
+      "schema_version": 1
+    },
+    {
+      "name": "airports",
+      "file": "airports.jsonl",
+      "records": 13,
+      "sha256": "fb45dc82f7de54f2121401bdcc4f2bf77e492299e6e9a8cde3bcf910c293cab1",
+      "schema_version": 1
+    },
+    {
+      "name": "stations",
+      "file": "stations.jsonl",
+      "records": 5,
+      "sha256": "c2c2c2e97016884e279e895d6bcdf1f433018cd6fb842dd6f4d323280a4d55fb",
+      "schema_version": 1
+    },
+    {
+      "name": "destinations",
+      "file": "destinations.jsonl",
+      "records": 9,
+      "sha256": "ffb1ddf2c37922655efbdde30954d52240948108bc488473888920a68a88a3f7",
+      "schema_version": 1
+    },
+    {
+      "name": "climate",
+      "file": "climate.jsonl",
+      "records": 108,
+      "sha256": "eeeab0d465c634df2cfb5ecd63692a5a535ef401820417dc2ce21e92ae9cb5d4",
+      "schema_version": 1
+    },
+    {
+      "name": "hotels",
+      "file": "hotels.jsonl",
+      "records": 64,
+      "sha256": "60a9e316425131ebab5905613530d24731be19c079459c724715407690a26930",
+      "schema_version": 1
+    },
+    {
+      "name": "routes",
+      "file": "routes.jsonl",
+      "records": 44,
+      "sha256": "18ef9e6901bb8b80e0d900688b3e9e8b0ff6109edecdaeafd9baf2df8ceea0ef",
+      "schema_version": 1
+    },
+    {
+      "name": "rail_routes",
+      "file": "rail_routes.jsonl",
+      "records": 3,
+      "sha256": "04ab3fb12144c8f33e200462b56da3ed8cc127eda7ff19cd2a56edf3ac47d97b",
+      "schema_version": 1
+    },
+    {
+      "name": "calibration",
+      "file": "calibration.jsonl",
+      "records": 1,
+      "sha256": "fd21d84e4e3eb6dea49556f0cb2b97a86fdfefaa522b09f4dad7e7c9f7dba8c0",
+      "schema_version": 1
+    }
+  ]
+}
