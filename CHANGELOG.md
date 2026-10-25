@@ -60,8 +60,18 @@
   `CHANGELOG.md`, `scripts/check-changelog.py` (разделы и их порядок, заголовки версий, ссылки, «Технически:»
   и хеш в каждом пункте, существование хеша в репозитории); задача `changelog` в CI только на PR; правила —
   в README, PR с записями мержится через merge commit. (`9ef35b5`)
+- Решение о визах по гражданству и план фазы 1 по ролям. Технически: ADR 0003 (статус proposed) — подбор по
+  всем странам с пометкой визы, виза по гражданству, источник `imorte/passport-index-data` (MIT, обновлён
+  2026-02-17); спека 0002 — изменения контракта: `Constraints.citizenship`, `Preferences.visa_free_only`,
+  `VisaRequirement`, `GET /countries`, `GET /places`, RPC `catalog.v1.GetVisaRequirement`, `ListCountries`,
+  `SearchPlaces`, проверки `visa` и `stay_within_visa_free_days`; спека 0003 — задачи `P1-BE-01…13`,
+  `P1-DS-01…08`, `P1-FE-01…10` и точки стыковки CFC-1…5, включая формат снапшота данных `data/`. (`b5b35b1`)
 
 ### Изменено
+
+- План проекта перестроен под три роли и новую географию. Технически: `docs/roadmap.md` и `docs/spec.md` —
+  роли бэкенд, данные и фронт вместо треков A, B, F; этап 1.0 «контракт виз» в фазе 1; визы в фазах 2 и 3;
+  открытые вопросы Q-005…Q-007; датированные дополнения в ADR 0001, ADR 0002 и спеке 0001. (`b5b35b1`)
 
 - Агент, фронт и gateway перешли на контракт фазы 0: план v2, события в конверте и API `/api/v1`.
   Технически: событие SSE — `{"type", "session_id", "turn_id", "seq", "data"}`, `turn_id` равен `message_id`
