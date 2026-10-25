@@ -86,7 +86,6 @@
   passport-index-data, климат Open-Meteo, отели OSM, тестовые тарифы) лежит в образе `inventory` до появления
   `data/snapshot`; в спеке 0003 — точная структура `calibration`. (`c0b924e`)
 
-
 ### Изменено
 
 - План проекта перестроен под три роли и новую географию. Технически: `docs/roadmap.md` и `docs/spec.md` —
