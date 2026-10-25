@@ -4,7 +4,7 @@
 - Дата: 2026-10-25
 - Основание: [ADR 0003](../adr/0003-visa-by-citizenship.md); меняет контракт [спеки 0001](0001-phase0-contracts.md)
 - Ревью: Ask. Меняет `api/openapi.yaml` и `proto/`, поэтому ревью синхронное, бэкенд и фронт вместе, до мержа.
-- Место в плане: первая задача фазы 1, `P1-BE-01` и `P1-FE-01` в [спеке 0003](0003-phase1-plan.md)
+- Место в плане: первая задача фазы 1 — `P1-BE-01` в [docs/phase1/backend.md](../phase1/backend.md); после её мержа фронт берёт `P1-FE-01` ([docs/phase1/frontend.md](../phase1/frontend.md))
 
 ## Context
 
