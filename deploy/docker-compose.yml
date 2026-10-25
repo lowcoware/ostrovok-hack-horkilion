@@ -35,7 +35,7 @@ services:
       CATALOG_PROVIDER: ${CATALOG_PROVIDER:-open-data}
       LODGING_PROVIDER: ${LODGING_PROVIDER:-osm}
       TRANSPORT_PROVIDER: ${TRANSPORT_PROVIDER:-synthetic}
-      TRANSFER_PROVIDER: ${TRANSFER_PROVIDER:-stub}
+      TRANSFER_PROVIDER: ${TRANSFER_PROVIDER:-synthetic}
 
   booking:
     <<: *service
