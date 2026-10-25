@@ -1,0 +1,2 @@
+# Snapshot files keep LF on every OS, otherwise sha256 in manifest.json would not match.
+snapshot/** text eol=lf
