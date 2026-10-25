@@ -22,18 +22,33 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        service: [gateway, agent, inventory, booking, notifier, migrate, web]
+        # All Go images share one tag and rebuild together; web is separate.
+        include:
+          - { service: gateway, group: backend }
+          - { service: agent, group: backend }
+          - { service: inventory, group: backend }
+          - { service: booking, group: backend }
+          - { service: notifier, group: backend }
+          - { service: migrate, group: backend }
+          - { service: web, group: web }
+    env:
+      CHANGED: ${{ needs.ci.outputs[matrix.group] }}
     steps:
       - uses: actions/checkout@v7
+        if: env.CHANGED == 'true'
       - name: Registry name (GHCR requires lowercase)
+        if: env.CHANGED == 'true'
         run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v4
+        if: env.CHANGED == 'true'
       - uses: docker/login-action@v4
+        if: env.CHANGED == 'true'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v7
+        if: env.CHANGED == 'true'
         with:
           context: ${{ matrix.service == 'web' && 'web' || '.' }}
           build-args: SERVICE=${{ matrix.service }}
@@ -45,7 +60,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   deploy:
-    needs: build
+    needs: [ci, build]
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -53,6 +68,8 @@ jobs:
       SSH_USER: ${{ secrets.SSH_USER }}
       SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'horkilion' }}
+      BACKEND_CHANGED: ${{ needs.ci.outputs.backend }}
+      WEB_CHANGED: ${{ needs.ci.outputs.web }}
     steps:
       - uses: actions/checkout@v7
       - name: Registry name (GHCR requires lowercase)
@@ -92,7 +109,15 @@ jobs:
           set -euo pipefail
           cd '$DEPLOY_PATH'
           test -f .env || { echo "deploy/.env is missing on the server, copy .env.example and fill it in"; exit 1; }
-          export IMAGE_REGISTRY='$REGISTRY' IMAGE_TAG='${{ github.sha }}'
+          # .image-tags remembers what runs now. Only the changed group gets
+          # the new tag, so compose leaves the other containers alone.
+          touch .image-tags
+          . ./.image-tags
+          BACKEND_TAG="\${BACKEND_TAG:-latest}" WEB_TAG="\${WEB_TAG:-latest}"
+          [ '$BACKEND_CHANGED' = true ] && BACKEND_TAG='${{ github.sha }}'
+          [ '$WEB_CHANGED' = true ] && WEB_TAG='${{ github.sha }}'
+          export IMAGE_REGISTRY='$REGISTRY' BACKEND_TAG WEB_TAG
+          echo "backend: \$BACKEND_TAG, web: \$WEB_TAG"
           docker compose pull --quiet
           docker compose up -d --remove-orphans
           for i in \$(seq 1 30); do
@@ -100,6 +125,7 @@ jobs:
             if [ "\$i" = 30 ]; then docker compose ps; docker compose logs --tail=50 gateway booking agent migrate; exit 1; fi
             sleep 5
           done
+          printf 'BACKEND_TAG=%s\nWEB_TAG=%s\n' "\$BACKEND_TAG" "\$WEB_TAG" > .image-tags
           docker image prune -f
           EOF
 

@@ -5,12 +5,51 @@ on:
   push:
     branches-ignore: [main] # main runs CI through the deploy workflow
   workflow_call:
+    outputs:
+      backend:
+        description: Go services changed, their images need a rebuild
+        value: ${{ jobs.changes.outputs.backend }}
+      web:
+        description: Frontend changed, the web image needs a rebuild
+        value: ${{ jobs.changes.outputs.web }}
 
 permissions:
   contents: read
 
 jobs:
+  # Decides which parts of the monorepo changed, so a frontend-only change
+  # checks and rebuilds only the frontend. Any doubt means "everything changed".
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.diff.outputs.backend }}
+      web: ${{ steps.diff.outputs.web }}
+      deploy: ${{ steps.diff.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No usable base commit, treating everything as changed"
+            files=".github/"
+          else
+            files=$(git diff --name-only "$BASE" HEAD)
+          fi
+          printf '%s\n' "$files"
+          changed() { grep -qE "$1|^\.github/" <<<"$files" && echo true || echo false; }
+          {
+            echo "backend=$(changed '^(cmd|internal|gen|migrations|proto)/|^go\.(mod|sum)$|^Dockerfile$|^\.dockerignore$')"
+            echo "web=$(changed '^web/')"
+            echo "deploy=$(changed '^deploy/')"
+          } | tee -a "$GITHUB_OUTPUT"
+
   go:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -23,6 +62,8 @@ jobs:
       - run: go test -race ./...
 
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -38,6 +79,8 @@ jobs:
       - run: npm run build
 
   compose:
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

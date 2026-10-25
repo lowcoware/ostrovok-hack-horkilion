@@ -9,7 +9,13 @@ export default defineConfig({
     alias: { "@": path.resolve(import.meta.dirname, "./src") },
   },
   server: {
-    // Local development: the gateway runs on :8080.
-    proxy: { "/api": "http://localhost:8080" },
+    // The local gateway on :8080 by default. VITE_API_TARGET points the dev
+    // server at a deployed backend instead, so frontend work needs no Docker.
+    proxy: {
+      "/api": {
+        target: process.env.VITE_API_TARGET ?? "http://localhost:8080",
+        changeOrigin: true,
+      },
+    },
   },
 });

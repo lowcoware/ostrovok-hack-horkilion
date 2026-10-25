@@ -19,7 +19,7 @@ services:
   # --- Application ----------------------------------------------------------
 
   migrate:
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-migrate:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-migrate:${BACKEND_TAG:-latest}
     restart: "no"
     environment:
       DATABASE_URL: *db-url
@@ -28,11 +28,11 @@ services:
 
   inventory:
     <<: *service
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-inventory:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-inventory:${BACKEND_TAG:-latest}
 
   booking:
     <<: *service
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-booking:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-booking:${BACKEND_TAG:-latest}
     environment:
       DATABASE_URL: *db-url
       NATS_URL: nats://nats:4222
@@ -44,7 +44,7 @@ services:
 
   agent:
     <<: *service
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-agent:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-agent:${BACKEND_TAG:-latest}
     environment:
       DATABASE_URL: *db-url
       NATS_URL: nats://nats:4222
@@ -67,7 +67,7 @@ services:
 
   gateway:
     <<: *service
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-gateway:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-gateway:${BACKEND_TAG:-latest}
     environment:
       NATS_URL: nats://nats:4222
       BOOKING_ADDR: booking:9000
@@ -77,7 +77,7 @@ services:
 
   notifier:
     <<: *service
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-notifier:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-notifier:${BACKEND_TAG:-latest}
     environment:
       NATS_URL: nats://nats:4222
       CLICKHOUSE_URL: http://clickhouse:8123
@@ -88,7 +88,7 @@ services:
 
   # Frontend + reverse proxy with automatic TLS.
   web:
-    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-web:${IMAGE_TAG:-latest}
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-web:${WEB_TAG:-latest}
     restart: unless-stopped
     ports:
       - "80:80"
