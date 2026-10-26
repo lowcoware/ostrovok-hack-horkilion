@@ -235,7 +235,9 @@ func (s *Synthetic) trains(fromCode, toCode string, date time.Time, p synth.Part
 			}},
 			DurationMinutes: int32(route.DurationMin), BaggageIncluded: true, Refundable: true,
 			PriceRub: synth.RailFareRub(s.data.Calibration, route, train, p, date),
-			Sources:  append(synth.Sources(s.data, "schedule", "testdata"), synth.Sources(s.data, "price", "synthetic")...),
+			// rail_routes carry no sources (CFC-3): the schedule comes from Yandex Rasp in the real snapshot and
+			// from test values in the backend one; synth.Sources keeps whichever the registry lists.
+			Sources: append(synth.Sources(s.data, "schedule", "yandex-rasp", "testdata"), synth.Sources(s.data, "price", "synthetic")...),
 		})
 	}
 	return out
