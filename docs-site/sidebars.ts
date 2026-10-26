@@ -19,6 +19,9 @@ const sidebars: SidebarsConfig = {
     category("Решения (ADR)", "adr"),
     category("Спеки", "specs"),
     category("Фаза 1", "phase1"),
+    category("Фаза 2", "phase2"),
+    category("Фаза 3", "phase3"),
+    category("Фаза 4", "phase4"),
     category("Q&A организаторов", "qa"),
   ],
 };
