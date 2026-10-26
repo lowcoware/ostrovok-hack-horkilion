@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,8 @@ import (
 	"google.golang.org/grpc/status"
 
 	bookingv1 "horkilion/gen/booking/v1"
+	catalogv1 "horkilion/gen/catalog/v1"
+	commonv1 "horkilion/gen/common/v1"
 	"horkilion/internal/agent/plan"
 	"horkilion/internal/platform"
 )
@@ -56,11 +59,22 @@ type Gateway struct {
 	turns   Turns
 	events  Events
 	booking bookingv1.BookingServiceClient
+	catalog catalogv1.CatalogServiceClient
+	sources []Provider
 	limiter *ipLimiter
 }
 
-func New(store Store, turns Turns, events Events, booking bookingv1.BookingServiceClient) *Gateway {
-	return &Gateway{store: store, turns: turns, events: events, booking: booking, limiter: newIPLimiter(rate.Limit(2), 10)}
+// Deps are the services and reference data the gateway serves from.
+type Deps struct {
+	Booking bookingv1.BookingServiceClient
+	Catalog catalogv1.CatalogServiceClient
+	// Sources is the "Откуда данные" list, see Providers.
+	Sources []Provider
+}
+
+func New(store Store, turns Turns, events Events, deps Deps) *Gateway {
+	return &Gateway{store: store, turns: turns, events: events, booking: deps.Booking, catalog: deps.Catalog,
+		sources: deps.Sources, limiter: newIPLimiter(rate.Limit(2), 10)}
 }
 
 // Router builds the HTTP routes.
@@ -86,7 +100,9 @@ func (g *Gateway) Router() *gin.Engine {
 
 	api.GET("/orders", g.listOrders)
 	api.GET("/orders/:id", g.getOrder)
-	api.GET("/sources", listSources)
+	api.GET("/sources", g.listSources)
+	api.GET("/countries", g.listCountries)
+	api.GET("/places", g.searchPlaces)
 	return r
 }
 
@@ -293,23 +309,29 @@ func (g *Gateway) checkout(c *gin.Context) {
 }
 
 var cartMessages = map[string]string{
-	"nothing_selected":  "в плане нет выбранных вариантов",
+	"nothing_selected":  "в плане не выбран отель",
 	"offer_unavailable": "выбранный вариант больше не предлагается, выберите другой",
 }
 
-// cartItems builds order items from the selected options of every component.
+// cartItems builds order items from the cart of the plan (plan.InCart): the
+// selected hotel plus the journeys and transfers the trip is assembled from.
+// Without a selected hotel there is nothing to buy; a selection that is no
+// longer offered blocks checkout instead of being swapped silently.
 func cartItems(p plan.TripPlan) ([]*bookingv1.OrderItem, error) {
 	c := p.Constraints
+	for _, name := range plan.ComponentNames {
+		if sel := p.Components.Get(name).Selected(); sel != nil && slices.Contains(sel.Flags, plan.FlagSelectedUnavailable) {
+			return nil, errors.New("offer_unavailable")
+		}
+	}
+	if p.InCart(plan.Stay) == nil {
+		return nil, errors.New("nothing_selected")
+	}
 	var items []*bookingv1.OrderItem
 	for _, name := range plan.ComponentNames {
-		sel := p.Components.Get(name).Selected()
+		sel := p.InCart(name)
 		if sel == nil {
 			continue
-		}
-		for _, f := range sel.Flags {
-			if f == plan.FlagSelectedUnavailable {
-				return nil, errors.New("offer_unavailable")
-			}
 		}
 		item := &bookingv1.OrderItem{OfferId: sel.ID, PriceRub: sel.PriceRub, Title: plan.OptionTitle(*sel)}
 		switch sel.Kind {
@@ -321,9 +343,6 @@ func cartItems(p plan.TripPlan) ([]*bookingv1.OrderItem, error) {
 			item.Kind, item.Travelers = bookingv1.ItemKind_ITEM_KIND_TRANSFER, c.TravelersProto()
 		}
 		items = append(items, item)
-	}
-	if len(items) == 0 {
-		return nil, errors.New("nothing_selected")
 	}
 	return items, nil
 }
@@ -358,8 +377,64 @@ func (g *Gateway) getOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, orderJSON(o))
 }
 
-func listSources(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"providers": providers})
+func (g *Gateway) listSources(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"providers": g.sources})
+}
+
+// catalogTimeout bounds the reference lookups; they back autocomplete.
+const catalogTimeout = 3 * time.Second
+
+type country struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+func (g *Gateway) listCountries(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), catalogTimeout)
+	defer cancel()
+	resp, err := g.catalog.ListCountries(ctx, &catalogv1.ListCountriesRequest{})
+	if err != nil {
+		internalError(c, "list countries", err)
+		return
+	}
+	out := make([]country, 0, len(resp.GetCountries()))
+	for _, cn := range resp.GetCountries() {
+		out = append(out, country{Code: cn.GetCode(), Name: cn.GetNameRu()})
+	}
+	c.JSON(http.StatusOK, gin.H{"countries": out})
+}
+
+// maxPlaces is the PlaceList limit of the API.
+const maxPlaces = 10
+
+func (g *Gateway) searchPlaces(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("query"))
+	if n := utf8.RuneCountInString(query); n < 2 || n > 100 {
+		apiError(c, http.StatusBadRequest, "bad_request", "query must be 2 to 100 characters")
+		return
+	}
+	if kind := c.DefaultQuery("kind", "city"); kind != "city" {
+		apiError(c, http.StatusBadRequest, "bad_request", "kind must be city")
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), catalogTimeout)
+	defer cancel()
+	resp, err := g.catalog.SearchPlaces(ctx, &catalogv1.SearchPlacesRequest{
+		Query: query, Kinds: []commonv1.Place_Kind{commonv1.Place_KIND_CITY}, Limit: maxPlaces,
+	})
+	if status.Code(err) == codes.InvalidArgument {
+		apiError(c, http.StatusBadRequest, "bad_request", status.Convert(err).Message())
+		return
+	}
+	if err != nil {
+		internalError(c, "search places", err)
+		return
+	}
+	places := make([]plan.Place, 0, len(resp.GetPlaces()))
+	for _, p := range resp.GetPlaces()[:min(len(resp.GetPlaces()), maxPlaces)] {
+		places = append(places, plan.PlaceFromProto(p))
+	}
+	c.JSON(http.StatusOK, gin.H{"places": places})
 }
 
 func notImplemented(c *gin.Context) {

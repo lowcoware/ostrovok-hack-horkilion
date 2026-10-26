@@ -1,0 +1,5 @@
+{"city_id": "moscow", "code": "moscow-kazansky", "lat": 55.752, "lon": 37.6178, "name": "Москва Казанская"}
+{"city_id": "moscow", "code": "moscow-kursky", "lat": 55.752, "lon": 37.6178, "name": "Москва Курская"}
+{"city_id": "sochi", "code": "sochi", "lat": 43.597, "lon": 39.7248, "name": "Сочи"}
+{"city_id": "kazan", "code": "kazan", "lat": 55.7887, "lon": 49.1221, "name": "Казань-Пассажирская"}
+{"city_id": "saint-petersburg", "code": "saint-petersburg-moskovsky", "lat": 59.9386, "lon": 30.3141, "name": "Санкт-Петербург Московский"}

@@ -21,6 +21,7 @@ import (
 	lodgingv1 "horkilion/gen/lodging/v1"
 	"horkilion/internal/agent/plan"
 	"horkilion/internal/apitest"
+	"horkilion/internal/dataset"
 	"horkilion/internal/platform"
 )
 
@@ -176,7 +177,11 @@ func (c *client) newSession() string {
 
 func setup(t *testing.T) (*fakeStore, *fakeTurns, *fakeBooking, func() *client) {
 	store, turns, booking := newFakeStore(), &fakeTurns{}, &fakeBooking{priceRub: 30000}
-	router := New(store, turns, fakeEvents{}, booking).Router()
+	data, err := dataset.Load("../dataset/testdata/snapshot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := New(store, turns, fakeEvents{}, Deps{Booking: booking, Catalog: catalogClient(t, data), Sources: Providers(data.Sources)}).Router()
 	return store, turns, booking, func() *client { return &client{t: t, router: router} }
 }
 

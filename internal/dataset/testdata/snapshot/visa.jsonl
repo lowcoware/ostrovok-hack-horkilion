@@ -1,0 +1,27 @@
+{"destination": "RU", "passport": "RU", "sources": ["passport-index-data"], "status": "home"}
+{"destination": "BY", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 90, "destination": "KZ", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 60, "destination": "TR", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 90, "destination": "AE", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 30, "destination": "EG", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_on_arrival"}
+{"days": 30, "destination": "CN", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_free"}
+{"destination": "FR", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_required"}
+{"days": 360, "destination": "GE", "passport": "RU", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 90, "destination": "RU", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_free"}
+{"destination": "BY", "passport": "BY", "sources": ["passport-index-data"], "status": "home"}
+{"days": 90, "destination": "KZ", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 30, "destination": "TR", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 90, "destination": "AE", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 30, "destination": "EG", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_on_arrival"}
+{"days": 30, "destination": "CN", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_free"}
+{"destination": "FR", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_required"}
+{"days": 360, "destination": "GE", "passport": "BY", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 90, "destination": "RU", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_free"}
+{"destination": "BY", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_free"}
+{"destination": "KZ", "passport": "KZ", "sources": ["passport-index-data"], "status": "home"}
+{"days": 90, "destination": "TR", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 30, "destination": "AE", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_free"}
+{"days": 30, "destination": "EG", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_on_arrival"}
+{"days": 30, "destination": "CN", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_free"}
+{"destination": "FR", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_required"}
+{"days": 360, "destination": "GE", "passport": "KZ", "sources": ["passport-index-data"], "status": "visa_free"}

@@ -19,5 +19,8 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 COPY --from=build /out/app /app
 # Business rules read by the agent at start (RULES_PATH, relative to /).
 COPY config/rules.yaml /config/rules.yaml
+# Data snapshot read by inventory at start (DATA_DIR=/data).
+# impulse: the image carries the backend test snapshot, switch to data/snapshot once P1-DS-01 lands it in main.
+COPY internal/dataset/testdata/snapshot /data
 USER 65532:65532
 ENTRYPOINT ["/app"]

@@ -12,6 +12,8 @@ import (
 
 	catalogv1 "horkilion/gen/catalog/v1"
 	lodgingv1 "horkilion/gen/lodging/v1"
+	transferv1 "horkilion/gen/transfer/v1"
+	transportv1 "horkilion/gen/transport/v1"
 	"horkilion/internal/agent"
 	"horkilion/internal/analytics"
 	"horkilion/internal/platform"
@@ -88,8 +90,12 @@ func run() error {
 		slog.Warn("LLM_API_KEY is not set, running with the rule router and template replies")
 	}
 	an := analytics.New(os.Getenv("CLICKHOUSE_URL"), platform.Env("CLICKHOUSE_USER", "default"), os.Getenv("CLICKHOUSE_PASSWORD"))
-	ag := agent.New(agent.NewStore(db), llm, rules, lodgingv1.NewLodgingServiceClient(invConn),
-		catalogv1.NewCatalogServiceClient(invConn), nc, an)
+	ag := agent.New(agent.NewStore(db), llm, rules, agent.Suppliers{
+		Lodging:   lodgingv1.NewLodgingServiceClient(invConn),
+		Catalog:   catalogv1.NewCatalogServiceClient(invConn),
+		Transport: transportv1.NewTransportServiceClient(invConn),
+		Transfer:  transferv1.NewTransferServiceClient(invConn),
+	}, nc, an)
 
 	// impulse: MaxAckPending 1 serializes all turns so one session's turns never race, replace with a per-session lock in NATS KV when one worker stops keeping up.
 	cons, err := js.CreateOrUpdateConsumer(ctx, platform.StreamAgentTurns, jetstream.ConsumerConfig{

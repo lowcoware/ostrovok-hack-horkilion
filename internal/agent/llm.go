@@ -97,6 +97,28 @@ func (l *LLM) Complete(ctx context.Context, system, user string) (out string, er
 	return resp.Choices[0].Message.Content, nil
 }
 
+// Chat returns one non-streamed answer of the main model that may call the
+// given tools.
+func (l *LLM) Chat(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam) (msg openai.ChatCompletionMessage, err error) {
+	ctx, span := startGeneration(ctx, "reply-llm-tools", l.model, messages)
+	defer func() { endSpan(span, msg.RawJSON(), err) }()
+
+	resp, err := l.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model:       l.model,
+		Temperature: openai.Float(0.4),
+		Messages:    messages,
+		Tools:       tools,
+	})
+	if err != nil {
+		return openai.ChatCompletionMessage{}, err
+	}
+	span.SetAttributes(tracing.InputTokens.Int64(resp.Usage.PromptTokens), tracing.OutputTokens.Int64(resp.Usage.CompletionTokens))
+	if len(resp.Choices) == 0 {
+		return openai.ChatCompletionMessage{}, errors.New("model returned no choices")
+	}
+	return resp.Choices[0].Message, nil
+}
+
 // Stream streams an answer from the main model, calling onToken for each chunk,
 // and returns the full text.
 func (l *LLM) Stream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, onToken func(string)) (out string, err error) {

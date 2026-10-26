@@ -1,0 +1,3 @@
+{"departures": ["13:05", "21:40"], "duration_min": 1540, "from_station": "moscow-kursky", "to_station": "sochi", "train_numbers": ["104В", "102Ж"]}
+{"departures": ["06:50", "21:15"], "duration_min": 720, "from_station": "moscow-kazansky", "to_station": "kazan", "train_numbers": ["704Г", "002Ж"]}
+{"departures": ["15:55"], "duration_min": 2160, "from_station": "saint-petersburg-moskovsky", "to_station": "sochi", "train_numbers": ["206Ч"]}

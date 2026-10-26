@@ -1,0 +1,13 @@
+{"airports": ["SVO"], "country_code": "RU", "id": "moscow", "lat": 55.752, "lon": 37.6178, "name_en": "Moscow", "name_ru": "Москва", "population": 10381222, "stations": ["moscow-kazansky", "moscow-kursky"], "timezone": "Europe/Moscow"}
+{"airports": ["LED"], "country_code": "RU", "id": "saint-petersburg", "lat": 59.9386, "lon": 30.3141, "name_en": "St Petersburg", "name_ru": "Санкт-Петербург", "population": 5351935, "stations": ["saint-petersburg-moskovsky"], "timezone": "Europe/Moscow"}
+{"airports": ["KZN"], "country_code": "RU", "id": "kazan", "lat": 55.7887, "lon": 49.1221, "name_en": "Kazan’", "name_ru": "Казань", "population": 1243500, "stations": ["kazan"], "timezone": "Europe/Moscow"}
+{"airports": ["AER"], "country_code": "RU", "id": "sochi", "lat": 43.597, "lon": 39.7248, "name_en": "Sochi", "name_ru": "Сочи", "population": 327608, "stations": ["sochi"], "timezone": "Europe/Moscow"}
+{"airports": ["KGD"], "country_code": "RU", "id": "kaliningrad", "lat": 54.7064, "lon": 20.511, "name_en": "Kaliningrad", "name_ru": "Калининград", "population": 475056, "stations": [], "timezone": "Europe/Kaliningrad"}
+{"airports": ["MSQ"], "country_code": "BY", "id": "minsk", "lat": 53.9002, "lon": 27.5665, "name_en": "Minsk", "name_ru": "Минск", "population": 1742124, "stations": [], "timezone": "Europe/Minsk"}
+{"airports": ["ALA"], "country_code": "KZ", "id": "almaty", "lat": 43.2525, "lon": 76.9115, "name_en": "Almaty", "name_ru": "Алматы", "population": 1977011, "stations": [], "timezone": "Asia/Almaty"}
+{"airports": ["AYT"], "country_code": "TR", "id": "antalya", "lat": 36.9081, "lon": 30.6956, "name_en": "Antalya", "name_ru": "Анталия", "population": 1335002, "stations": [], "timezone": "Europe/Istanbul"}
+{"airports": ["DXB"], "country_code": "AE", "id": "dubai", "lat": 25.0772, "lon": 55.3093, "name_en": "Dubai", "name_ru": "Дубай", "population": 3790000, "stations": [], "timezone": "Asia/Dubai"}
+{"airports": ["HRG"], "country_code": "EG", "id": "hurghada", "lat": 27.2574, "lon": 33.8129, "name_en": "Hurghada", "name_ru": "Хургада", "population": 207132, "stations": [], "timezone": "Africa/Cairo"}
+{"airports": ["PEK"], "country_code": "CN", "id": "beijing", "lat": 39.9075, "lon": 116.3972, "name_en": "Beijing", "name_ru": "Пекин", "population": 18960744, "stations": [], "timezone": "Asia/Shanghai"}
+{"airports": ["CDG"], "country_code": "FR", "id": "paris", "lat": 48.8534, "lon": 2.3488, "name_en": "Paris", "name_ru": "Париж", "population": 2138551, "stations": [], "timezone": "Europe/Paris"}
+{"airports": ["TBS"], "country_code": "GE", "id": "tbilisi", "lat": 41.6914, "lon": 44.8341, "name_en": "Tbilisi", "name_ru": "Тбилиси", "population": 1049498, "stations": [], "timezone": "Asia/Tbilisi"}

@@ -1,0 +1,64 @@
+{"destination_id": "sochi", "id": "osm.node.736694948", "lat": 43.5729, "lon": 39.73504, "name": "MIRROR", "osm_id": 736694948, "sources": ["osm"], "stars": 3}
+{"destination_id": "sochi", "id": "osm.node.736761646", "lat": 43.57611, "lon": 39.72585, "name": "City Park Hotel", "osm_id": 736761646, "sources": ["osm"], "stars": 4}
+{"destination_id": "sochi", "id": "osm.node.948203233", "lat": 43.57265, "lon": 39.73259, "name": "Отель \"Жемчуг\"", "osm_id": 948203233, "sources": ["osm"]}
+{"destination_id": "sochi", "id": "osm.node.1323204199", "lat": 43.58089, "lon": 39.72272, "name": "МИРИТ", "osm_id": 1323204199, "sources": ["osm"], "stars": 3}
+{"destination_id": "sochi", "id": "osm.node.1521215547", "lat": 43.62141, "lon": 39.70206, "name": "Санаторий Салют", "osm_id": 1521215547, "sources": ["osm"], "stars": 4}
+{"destination_id": "sochi", "id": "osm.node.1859716038", "lat": 43.57176, "lon": 39.7398, "name": "Вилла \"Анна\"", "osm_id": 1859716038, "sources": ["osm"]}
+{"destination_id": "sochi", "id": "osm.node.2181712522", "lat": 43.57725, "lon": 39.72232, "name": "Мини-отель \"Маяк\"", "osm_id": 2181712522, "sources": ["osm"]}
+{"destination_id": "sochi", "id": "osm.node.4393265790", "lat": 43.62228, "lon": 39.69957, "name": "Отель «Империя»", "osm_id": 4393265790, "sources": ["osm"]}
+{"destination_id": "kazan", "id": "osm.node.702352431", "lat": 55.78759, "lon": 49.11791, "name": "Hotel Art", "osm_id": 702352431, "sources": ["osm"], "stars": 4}
+{"destination_id": "kazan", "id": "osm.node.702352432", "lat": 55.78782, "lon": 49.11959, "name": "Шаляпин Палас Отель", "osm_id": 702352432, "sources": ["osm"], "stars": 4}
+{"destination_id": "kazan", "id": "osm.node.702352433", "lat": 55.79376, "lon": 49.10314, "name": "Мираж", "osm_id": 702352433, "sources": ["osm"]}
+{"destination_id": "kazan", "id": "osm.node.702352946", "lat": 55.79384, "lon": 49.14955, "name": "Корстон", "osm_id": 702352946, "sources": ["osm"], "stars": 5}
+{"destination_id": "kazan", "id": "osm.node.704753807", "lat": 55.79316, "lon": 49.11046, "name": "Алмаз", "osm_id": 704753807, "sources": ["osm"]}
+{"destination_id": "kazan", "id": "osm.node.1210345694", "lat": 55.78511, "lon": 49.17163, "name": "Гвардейская", "osm_id": 1210345694, "sources": ["osm"]}
+{"destination_id": "kazan", "id": "osm.node.1974744920", "lat": 55.78556, "lon": 49.12578, "name": "Регина", "osm_id": 1974744920, "sources": ["osm"], "stars": 3}
+{"destination_id": "kazan", "id": "osm.node.2016092412", "lat": 55.78408, "lon": 49.12489, "name": "Bilyar Palace", "osm_id": 2016092412, "sources": ["osm"], "stars": 4}
+{"destination_id": "kaliningrad", "id": "osm.node.518447378", "lat": 54.72373, "lon": 20.49001, "name": "Черепаха", "osm_id": 518447378, "sources": ["osm"]}
+{"destination_id": "kaliningrad", "id": "osm.node.1124599321", "lat": 54.68016, "lon": 20.48299, "name": "Прусссия", "osm_id": 1124599321, "sources": ["osm"]}
+{"destination_id": "kaliningrad", "id": "osm.node.1193845841", "lat": 54.73491, "lon": 20.47425, "name": "Гостиница", "osm_id": 1193845841, "sources": ["osm"]}
+{"destination_id": "kaliningrad", "id": "osm.node.1419122616", "lat": 54.73174, "lon": 20.53088, "name": "Турист", "osm_id": 1419122616, "sources": ["osm"]}
+{"destination_id": "kaliningrad", "id": "osm.node.1732701858", "lat": 54.7199, "lon": 20.50482, "name": "Рэдиссон Калининград", "osm_id": 1732701858, "sources": ["osm"]}
+{"destination_id": "kaliningrad", "id": "osm.node.2405291871", "lat": 54.73192, "lon": 20.52111, "name": "Villa Severin", "osm_id": 2405291871, "sources": ["osm"]}
+{"destination_id": "kaliningrad", "id": "osm.node.3158291833", "lat": 54.69724, "lon": 20.50847, "name": "Золотая бухта", "osm_id": 3158291833, "sources": ["osm"], "stars": 3}
+{"destination_id": "kaliningrad", "id": "osm.node.4757747819", "lat": 54.71794, "lon": 20.50674, "name": "Орион", "osm_id": 4757747819, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.530098775", "lat": 36.88283, "lon": 30.70459, "name": "Hotel Frankfurt", "osm_id": 530098775, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.1280250536", "lat": 36.88389, "lon": 30.70678, "name": "Alp Paşa Hotel", "osm_id": 1280250536, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.1486003008", "lat": 36.8817, "lon": 30.70955, "name": "Oscar Boutique", "osm_id": 1486003008, "sources": ["osm"], "stars": 3}
+{"destination_id": "antalya", "id": "osm.node.1710776982", "lat": 36.87735, "lon": 30.70733, "name": "Kozan Hotel", "osm_id": 1710776982, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.1711817368", "lat": 36.88244, "lon": 30.70468, "name": "Patio Hotel & Restaurant", "osm_id": 1711817368, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.1711817370", "lat": 36.88197, "lon": 30.70372, "name": "Bacchus Hotel", "osm_id": 1711817370, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.1711817375", "lat": 36.88272, "lon": 30.70424, "name": "Eliza Hotel", "osm_id": 1711817375, "sources": ["osm"]}
+{"destination_id": "antalya", "id": "osm.node.1711817378", "lat": 36.88235, "lon": 30.7043, "name": "Hadrianus Boutique Hotel", "osm_id": 1711817378, "sources": ["osm"], "stars": 3}
+{"destination_id": "hurghada", "id": "osm.node.914817093", "lat": 27.25818, "lon": 33.82551, "name": "Hotel Seaview", "osm_id": 914817093, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.914817094", "lat": 27.25871, "lon": 33.82366, "name": "Hotel Cindrella", "osm_id": 914817094, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.1825093407", "lat": 27.24064, "lon": 33.84231, "name": "Paradise Residence", "osm_id": 1825093407, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.1825093424", "lat": 27.2404, "lon": 33.84153, "name": "Paradise Hill Appartment Hotel", "osm_id": 1825093424, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.1825102656", "lat": 27.25833, "lon": 33.82196, "name": "El Arusa Hotel", "osm_id": 1825102656, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.4999155321", "lat": 27.24016, "lon": 33.82764, "name": "الغردقة", "osm_id": 4999155321, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.5158877725", "lat": 27.25843, "lon": 33.81915, "name": "Hotel Luxor", "osm_id": 5158877725, "sources": ["osm"]}
+{"destination_id": "hurghada", "id": "osm.node.5784653143", "lat": 27.26005, "lon": 33.81959, "name": "Snafer Hotel", "osm_id": 5784653143, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.269698692", "lat": 39.91371, "lon": 116.41029, "name": "王府半岛酒店", "osm_id": 269698692, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.675650535", "lat": 39.91461, "lon": 116.41274, "name": "北京丽晶酒店", "osm_id": 675650535, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.848392921", "lat": 39.91759, "lon": 116.40534, "name": "国际艺苑大酒店", "osm_id": 848392921, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.984121794", "lat": 39.89235, "lon": 116.41983, "name": "北京崇裕", "osm_id": 984121794, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.995927993", "lat": 39.89628, "lon": 116.42277, "name": "北京花市星辰酒店", "osm_id": 995927993, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.1446813603", "lat": 39.93328, "lon": 116.40031, "name": "侣松园宾馆", "osm_id": 1446813603, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.1484607167", "lat": 39.88842, "lon": 116.42834, "name": "7天酒店", "osm_id": 1484607167, "sources": ["osm"]}
+{"destination_id": "beijing", "id": "osm.node.1709525135", "lat": 39.90666, "lon": 116.35283, "name": "明苑酒店", "osm_id": 1709525135, "sources": ["osm"]}
+{"destination_id": "paris", "id": "osm.node.224711659", "lat": 48.84031, "lon": 2.31558, "name": "Ibis", "osm_id": 224711659, "sources": ["osm"]}
+{"destination_id": "paris", "id": "osm.node.247435032", "lat": 48.86118, "lon": 2.34361, "name": "Hôtel Saint-Honoré", "osm_id": 247435032, "sources": ["osm"], "stars": 3}
+{"destination_id": "paris", "id": "osm.node.247435275", "lat": 48.86436, "lon": 2.33626, "name": "Hôtel Montpensier", "osm_id": 247435275, "sources": ["osm"], "stars": 2}
+{"destination_id": "paris", "id": "osm.node.247436637", "lat": 48.86291, "lon": 2.33818, "name": "Hôtel Louvre Bon Enfants", "osm_id": 247436637, "sources": ["osm"], "stars": 3}
+{"destination_id": "paris", "id": "osm.node.247437972", "lat": 48.86628, "lon": 2.32801, "name": "Hôtel Costes", "osm_id": 247437972, "sources": ["osm"]}
+{"destination_id": "paris", "id": "osm.node.251001754", "lat": 48.86969, "lon": 2.3487, "name": "Résidence les Boulevards", "osm_id": 251001754, "sources": ["osm"], "stars": 4}
+{"destination_id": "paris", "id": "osm.node.251001755", "lat": 48.86957, "lon": 2.34868, "name": "Hôtel Marie", "osm_id": 251001755, "sources": ["osm"]}
+{"destination_id": "paris", "id": "osm.node.251127867", "lat": 48.85692, "lon": 2.35529, "name": "Hôtel du Loiret", "osm_id": 251127867, "sources": ["osm"], "stars": 3}
+{"destination_id": "tbilisi", "id": "osm.node.288584314", "lat": 41.68933, "lon": 44.81926, "name": "მარგო", "osm_id": 288584314, "sources": ["osm"]}
+{"destination_id": "tbilisi", "id": "osm.node.468312588", "lat": 41.70182, "lon": 44.79989, "name": "Riverside", "osm_id": 468312588, "sources": ["osm"]}
+{"destination_id": "tbilisi", "id": "osm.node.860165478", "lat": 41.71177, "lon": 44.80288, "name": "ესკიზი", "osm_id": 860165478, "sources": ["osm"]}
+{"destination_id": "tbilisi", "id": "osm.node.902319213", "lat": 41.69272, "lon": 44.80666, "name": "ბარსუნა", "osm_id": 902319213, "sources": ["osm"]}
+{"destination_id": "tbilisi", "id": "osm.node.925715742", "lat": 41.67667, "lon": 44.8341, "name": "Bazaleti Palace Hotel", "osm_id": 925715742, "sources": ["osm"]}
+{"destination_id": "tbilisi", "id": "osm.node.1367768930", "lat": 41.69617, "lon": 44.8068, "name": "ამბასადორი", "osm_id": 1367768930, "sources": ["osm"], "stars": 5}
+{"destination_id": "tbilisi", "id": "osm.node.1568753323", "lat": 41.69027, "lon": 44.81239, "name": "GTM", "osm_id": 1568753323, "sources": ["osm"]}
+{"destination_id": "tbilisi", "id": "osm.node.1658181312", "lat": 41.69339, "lon": 44.80322, "name": "ძველი თბილისი", "osm_id": 1658181312, "sources": ["osm"]}

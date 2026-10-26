@@ -59,6 +59,16 @@ type BookingCreated struct {
 	Items     []BookingItemInfo `json:"items"`
 }
 
+// FullTrip reports whether the order is a whole trip: a hotel, both
+// journeys and both transfers (the phase 1 target, spec 0003).
+func (b BookingCreated) FullTrip() bool {
+	kinds := map[string]int{}
+	for _, it := range b.Items {
+		kinds[it.Kind]++
+	}
+	return kinds["stay"] >= 1 && kinds["journey"] >= 2 && kinds["transfer"] >= 2
+}
+
 type BookingItemInfo struct {
 	Kind     string `json:"kind"`
 	Title    string `json:"title"`

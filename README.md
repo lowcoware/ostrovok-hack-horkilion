@@ -24,16 +24,21 @@ LLM — любой OpenAI-совместимый эндпоинт: `LLM_BASE_URL
 
 ## Локальный запуск
 
-Нужен Docker с compose v2.
+Нужен Docker с compose v2. Ключи не нужны: без ключа LLM агент работает на правилах.
 
 ```bash
-cp deploy/.env.example deploy/.env   # заполнить секреты: openssl rand -hex 24
-docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up --build -d
+./run.sh        # приложение: сервисы, фронт, PostgreSQL, NATS — http://localhost
+./run.sh full   # плюс Langfuse (http://localhost:3000), ClickHouse, Prometheus, Grafana (http://localhost:3001)
+./run.sh down   # остановить, данные в томах остаются
 ```
 
-- приложение: http://localhost
-- Langfuse: http://localhost:3000
-- Grafana: http://localhost:3001 (admin / `GRAFANA_ADMIN_PASSWORD`)
+При первом запуске `run.sh` создаёт `deploy/.env` из `.env.example` со свежими секретами. Потом он берёт образы из GHCR, а если их не скачать (пакеты приватные, нет `docker login`), собирает их локально. Ключ LLM вписывается в `LLM_API_KEY` в `deploy/.env`, после этого `./run.sh` нужно запустить ещё раз.
+
+Профиль задаёт `COMPOSE_PROFILES` в `deploy/.env`: пусто — только приложение, `full` — весь стек. Без профиля аналитика воронки выключена (`ANALYTICS_URL=`), трейсы тоже: ключи Langfuse пустые. Собрать всё из исходников вручную:
+
+```bash
+docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up --build -d
+```
 
 Разработка без контейнеров: Go 1.27, Node 24. `go test ./...`, `cd web && npm run dev` (проксирует `/api` на `localhost:8080`).
 
@@ -73,7 +78,7 @@ VITE_API_TARGET=https://<домен приложения> npm run dev
 
 ## Деплой через GitHub Actions
 
-На каждый push в `main` workflow `Deploy` прогоняет CI, собирает изменившиеся образы в GHCR (`ghcr.io/<owner>/horkilion-*:<sha>`), копирует `deploy/` на сервер по SSH и делает `docker compose pull && up -d`. Go-сервисы и фронт живут под разными тегами, текущие теги сервер хранит в `~/horkilion/.image-tags`. Деплой считается успешным, когда `gateway` проходит health-проверку.
+На каждый push в `main` workflow `Deploy` прогоняет CI, собирает изменившиеся образы в GHCR (`ghcr.io/<owner>/horkilion-*:<sha>`), копирует `deploy/` на сервер по SSH и делает `docker compose pull && up -d`. Go-сервисы и фронт живут под разными тегами, текущие теги сервер хранит в `~/horkilion/.image-tags`. Деплой считается успешным, когда `gateway` проходит health-проверку. На сервере в `deploy/.env` должно стоять `COMPOSE_PROFILES=full`, иначе Langfuse и Grafana не поднимутся.
 
 ### Сервер (один раз)
 

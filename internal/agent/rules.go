@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/goccy/go-yaml"
+
+	"horkilion/internal/agent/plan"
 )
 
 // Rules are the business rules from config/rules.yaml. They are config, not
@@ -21,6 +24,13 @@ type Rules struct {
 	Pricing struct {
 		MarkupPercent float64 `yaml:"markup_percent"`
 	} `yaml:"pricing"`
+}
+
+func (r Rules) connectionRules() plan.ConnectionRules {
+	return plan.ConnectionRules{
+		MinArrivalToCheckin: time.Duration(r.Connections.MinArrivalToCheckinMinutes) * time.Minute,
+		DepartureBuffer:     time.Duration(r.Connections.DepartureBufferMinutes) * time.Minute,
+	}
 }
 
 // LoadRules reads and validates the rules file. Unknown keys are an error, so
