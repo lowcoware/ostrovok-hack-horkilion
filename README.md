@@ -5,7 +5,7 @@
 > - [ostrovok-frontend](https://github.com/lowcoware/ostrovok-frontend) — веб-клиент;
 > - ostrovok-docs — документация (публичная часть на https://app.ostrovok.crssr.ru/docs/).
 >
-> Незакоммиченную работу перенесите в новый репозиторий: `git diff > work.patch`, затем в новом клоне `git apply -p1 work.patch` для бэкенда, `git apply -p2 --directory=. work.patch` для правок из `web/`.
+> Незакоммиченную работу перенесите в новый репозиторий патчем. Бэкенд: `git diff -- . ':!web' ':!docs' ':!docs-site' > backend.patch`, в клоне ostrovok-backend `git apply backend.patch`. Фронт: `git diff -- web > web.patch`, в клоне ostrovok-frontend `git apply -p2 web.patch`.
 
 Прототип AI-агента для путешествий: одно сообщение пользователя превращается в план поездки с вариантами отелей, погодой и имитированной покупкой. Задание описано в [docs/case.md](docs/case.md), архитектура — в [ADR 0001](docs/adr/0001-architecture.md).
 
