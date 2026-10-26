@@ -39,7 +39,7 @@
 | Диск | 20 ГБ (образы около 7 ГБ плюс данные и логи) | 40 ГБ |
 | CPU | 2 ядра | 4 ядра |
 | ПО | Docker Engine с плагином compose v2, `openssl` | — |
-| Сеть | Публичный IP; открыты 22 (SSH), 80 и 443; для доступа к Langfuse и Grafana по портам — 3000 и 3001 | Домен с A-записями на сервер |
+| Сеть | Публичный IP; открыты 22 (SSH), 80 и 443; без доменов ещё 8080 (API), 3000 (Langfuse) и 3001 (Grafana) | Домен с A-записями на сервер |
 
 Сборки на сервере нет: образы собирает CI.
 
@@ -122,11 +122,11 @@ server$ for f in /etc/ssh/ssh_host_*_key.pub; do ssh-keygen -lf "$f"; done
 server$ sudo ufw allow OpenSSH
 server$ sudo ufw allow 80,443/tcp
 server$ sudo ufw allow 443/udp      # HTTP/3
-server$ sudo ufw allow 3000,3001/tcp   # только если Langfuse и Grafana открываются по портам, а не по доменам
+server$ sudo ufw allow 8080,3000,3001/tcp   # только без доменов: API, Langfuse и Grafana по портам
 server$ sudo ufw enable
 ```
 
-Docker публикует порты в обход `ufw`: закрыть порт контейнера правилом `ufw` нельзя. Наружу у нас публикует порты только контейнер `web` (Caddy): 80, 443, 3000 и 3001. Закрыть 3000 и 3001 можно файрволом провайдера (security group) или переводом Langfuse и Grafana на домены (раздел 3.6): тогда Caddy обслуживает их на 443, а на портах 3000 и 3001 никто не слушает.
+Docker публикует порты в обход `ufw`: закрыть порт контейнера правилом `ufw` нельзя. Наружу у нас публикует порты только контейнер `web` (Caddy): 80, 443, 8080, 3000 и 3001. Закрыть 8080, 3000 и 3001 можно файрволом провайдера (security group) или переводом API, Langfuse и Grafana на домены (раздел 3.6): тогда Caddy обслуживает их на 443, а на этих портах никто не слушает.
 
 ### 3.6. Домены (необязательно)
 
@@ -134,9 +134,14 @@ Docker публикует порты в обход `ufw`: закрыть пор�
 
 | Запись | Для чего |
 |---|---|
-| `trip.example.com` | приложение и документация (`/docs/`) |
+| `app.example.com` | приложение и документация (`/docs/`) |
+| `api.example.com` | API агента для сторонних клиентов |
 | `langfuse.example.com` | Langfuse |
 | `grafana.example.com` | Grafana |
+
+Наш фронт ходит в API по пути `/api` своего же адреса, поэтому ему не нужны CORS и межсайтовые cookie. Отдельный `api.example.com` — точка входа для сторонних клиентов агента: он проксирует всё на `gateway`. Запросы из чужого браузерного фронта на него потребуют CORS, сейчас gateway его не отдаёт.
+
+Без AAAA-записей на этих именах: иначе Let's Encrypt может проверять домен по IPv6 мимо сервера. Если DNS в Cloudflare, ставьте режим «DNS only» (серое облако), иначе Caddy не получит сертификат сам. TTL лучше 300 секунд, чтобы быстро исправить ошибку.
 
 Caddy сам получит сертификаты Let's Encrypt при первом запросе, если записи уже смотрят на сервер и порты 80 и 443 открыты. Адреса задаются переменными в GitHub (раздел 4.3).
 
@@ -170,7 +175,8 @@ Settings → Environments → `production` → Environment variables. Все н�
 | Переменная | По умолчанию | Пример с доменами | Что делает |
 |---|---|---|---|
 | `DEPLOY_PATH` | `horkilion` | `horkilion` | Каталог на сервере относительно домашнего каталога пользователя |
-| `SITE_ADDRESS` | `:80` | `trip.example.com` | Адрес приложения и документации |
+| `SITE_ADDRESS` | `:80` | `app.example.com` | Адрес приложения и документации |
+| `API_ADDRESS` | `:8080` | `api.example.com` | Адрес API агента для сторонних клиентов |
 | `LANGFUSE_ADDRESS` | `:3000` | `langfuse.example.com` | Адрес Langfuse |
 | `GRAFANA_ADDRESS` | `:3001` | `grafana.example.com` | Адрес Grafana |
 | `LANGFUSE_URL` | `http://localhost:3000` | `https://langfuse.example.com` | Публичный URL Langfuse для ссылок входа. Без доменов укажите `http://<IP>:3000` |
@@ -197,7 +203,7 @@ $ gh secret set SSH_PRIVATE_KEY --env production --repo $R < horkilion_deploy
 $ gh secret set SSH_KNOWN_HOSTS --env production --repo $R < known_hosts.txt
 $ grep '^LLM_API_KEY=' deploy/.env | cut -d= -f2- | tr -d '\n' | gh secret set LLM_API_KEY --env production --repo $R
 
-$ gh variable set SITE_ADDRESS --env production --repo $R --body 'trip.example.com'
+$ gh variable set SITE_ADDRESS --env production --repo $R --body 'app.example.com'
 $ gh secret list --env production --repo $R
 ```
 
@@ -228,6 +234,7 @@ $ docker logout ghcr.io; docker pull ghcr.io/<owner>/horkilion-gateway:latest
 |---|---|---|
 | Приложение | `http://<IP>/` | — |
 | Документация | `http://<IP>/docs/` | — |
+| API для сторонних клиентов | `http://<IP>:8080/api/v1/...` | — |
 | Langfuse | `http://<IP>:3000` | `LANGFUSE_INIT_USER_EMAIL` (по умолчанию `admin@horkilion.local`) и `LANGFUSE_INIT_USER_PASSWORD` из `.env` сервера |
 | Grafana | `http://<IP>:3001` | `admin` и `GRAFANA_ADMIN_PASSWORD` из `.env` сервера |
 

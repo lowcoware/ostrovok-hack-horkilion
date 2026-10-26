@@ -2,7 +2,7 @@
 # Prepares .env next to docker-compose.yml on the server. The deploy workflow
 # runs it before every start:
 #
-#   printf '%s' "$LLM_API_KEY" | bash server-env.sh REGISTRY [SITE_ADDRESS LANGFUSE_ADDRESS GRAFANA_ADDRESS LANGFUSE_URL]
+#   printf '%s' "$LLM_API_KEY" | bash server-env.sh REGISTRY [SITE_ADDRESS LANGFUSE_ADDRESS GRAFANA_ADDRESS LANGFUSE_URL API_ADDRESS]
 #
 # On the first run it creates .env from .env.example with fresh secrets, the
 # same way ./run.sh does on a developer machine. On every run the values kept in
@@ -13,11 +13,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-registry=${1:?usage: server-env.sh REGISTRY [SITE_ADDRESS LANGFUSE_ADDRESS GRAFANA_ADDRESS LANGFUSE_URL]}
+registry=${1:?usage: server-env.sh REGISTRY [SITE_ADDRESS LANGFUSE_ADDRESS GRAFANA_ADDRESS LANGFUSE_URL API_ADDRESS]}
 site_address=${2:-}
 langfuse_address=${3:-}
 grafana_address=${4:-}
 langfuse_url=${5:-}
+api_address=${6:-}
 llm_key=
 IFS= read -r llm_key || true
 
@@ -58,3 +59,4 @@ if [ -n "$site_address" ]; then set_var SITE_ADDRESS "$site_address"; fi
 if [ -n "$langfuse_address" ]; then set_var LANGFUSE_ADDRESS "$langfuse_address"; fi
 if [ -n "$grafana_address" ]; then set_var GRAFANA_ADDRESS "$grafana_address"; fi
 if [ -n "$langfuse_url" ]; then set_var LANGFUSE_URL "$langfuse_url"; fi
+if [ -n "$api_address" ]; then set_var API_ADDRESS "$api_address"; fi

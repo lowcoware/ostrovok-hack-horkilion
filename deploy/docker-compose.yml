@@ -111,10 +111,12 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+      - "8080:8080"
       - "3000:3000"
       - "3001:3001"
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      API_ADDRESS: ${API_ADDRESS:-:8080}
       LANGFUSE_ADDRESS: ${LANGFUSE_ADDRESS:-:3000}
       GRAFANA_ADDRESS: ${GRAFANA_ADDRESS:-:3001}
     volumes:

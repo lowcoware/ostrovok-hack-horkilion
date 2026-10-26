@@ -1,7 +1,7 @@
 # Addresses come from the environment. Use domain names on a server to get
 # automatic HTTPS (Let's Encrypt), or ports for plain HTTP:
-#   SITE_ADDRESS=trip.example.com     LANGFUSE_ADDRESS=langfuse.example.com   GRAFANA_ADDRESS=grafana.example.com
-#   SITE_ADDRESS=:80                  LANGFUSE_ADDRESS=:3000                  GRAFANA_ADDRESS=:3001
+#   SITE_ADDRESS=app.example.com   API_ADDRESS=api.example.com   LANGFUSE_ADDRESS=langfuse.example.com   GRAFANA_ADDRESS=grafana.example.com
+#   SITE_ADDRESS=:80               API_ADDRESS=:8080             LANGFUSE_ADDRESS=:3000                  GRAFANA_ADDRESS=:3001
 
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
@@ -27,6 +27,14 @@
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+}
+
+# The agent API for other clients (ADR 0002). Our frontend keeps calling /api on
+# its own address, so it needs no CORS or cross-site cookies.
+{$API_ADDRESS::8080} {
+	encode zstd gzip
+	reverse_proxy gateway:8080
+	header -Server
 }
 
 {$LANGFUSE_ADDRESS::3000} {

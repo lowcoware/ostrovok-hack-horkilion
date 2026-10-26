@@ -113,9 +113,10 @@ jobs:
           LANGFUSE_ADDRESS: ${{ vars.LANGFUSE_ADDRESS }}
           GRAFANA_ADDRESS: ${{ vars.GRAFANA_ADDRESS }}
           LANGFUSE_URL: ${{ vars.LANGFUSE_URL }}
+          API_ADDRESS: ${{ vars.API_ADDRESS }}
         run: |
           printf '%s' "$LLM_API_KEY" | ssh server "bash '$DEPLOY_PATH/server-env.sh' '$REGISTRY' \
-            '$SITE_ADDRESS' '$LANGFUSE_ADDRESS' '$GRAFANA_ADDRESS' '$LANGFUSE_URL'"
+            '$SITE_ADDRESS' '$LANGFUSE_ADDRESS' '$GRAFANA_ADDRESS' '$LANGFUSE_URL' '$API_ADDRESS'"
 
       - name: Log in to GHCR on the server
         # The token goes over stdin, never into a command line on the server.
