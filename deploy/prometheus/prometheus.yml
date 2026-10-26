@@ -2,6 +2,7 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
+  # Go services: request metrics, agent and LLM metrics, Go runtime.
   - job_name: services
     static_configs:
       - targets:
@@ -10,3 +11,23 @@ scrape_configs:
           - inventory:8081
           - booking:8081
           - notifier:8081
+    relabel_configs:
+      # "gateway:8081" -> service="gateway", for readable legends.
+      - source_labels: [__address__]
+        regex: "([^:]+):.*"
+        target_label: service
+
+  # The host: CPU, memory, disk, network.
+  - job_name: node
+    static_configs:
+      - targets: [node-exporter:9100]
+
+  # Every container: CPU, memory, network, labelled with the compose service.
+  - job_name: cadvisor
+    scrape_interval: 30s
+    static_configs:
+      - targets: [cadvisor:8080]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]

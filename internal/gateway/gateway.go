@@ -81,7 +81,7 @@ func New(store Store, turns Turns, events Events, deps Deps) *Gateway {
 func (g *Gateway) Router() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery(), limitBody, g.rateLimit)
+	r.Use(gin.Recovery(), platform.HTTPMetrics, limitBody, g.rateLimit)
 
 	api := r.Group("/api/v1", owner)
 	api.POST("/auth/register", notImplemented)

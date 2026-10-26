@@ -20,7 +20,7 @@ func ServeGRPC(ctx context.Context, register func(*grpc.Server)) error {
 	if err != nil {
 		return fmt.Errorf("listen %s: %w", addr, err)
 	}
-	srv := grpc.NewServer()
+	srv := grpc.NewServer(grpc.ChainUnaryInterceptor(grpcMetrics))
 	register(srv)
 	healthpb.RegisterHealthServer(srv, health.NewServer())
 
