@@ -6,6 +6,11 @@
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 
+	redir /docs /docs/
+	handle /docs/* {
+		reverse_proxy docs:8080
+	}
+
 	handle /api/* {
 		# SSE responses are flushed immediately by reverse_proxy.
 		reverse_proxy gateway:8080

@@ -124,6 +124,14 @@ services:
     depends_on:
       gateway: { condition: service_healthy }
 
+  # Documentation site (docs/ rendered by Docusaurus), served by web under /docs/.
+  docs:
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-docs:${DOCS_TAG:-latest}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
   # --- Infrastructure -------------------------------------------------------
 
   postgres:

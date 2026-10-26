@@ -1,0 +1,7 @@
+# BuildKit reads this file instead of the root .dockerignore, which excludes docs/.
+*
+!docs
+!docs-site
+docs-site/node_modules
+docs-site/build
+docs-site/.docusaurus

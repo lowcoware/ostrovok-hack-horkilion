@@ -16,6 +16,7 @@
 | `proto/`, `gen/` | gRPC-контракты поставщиков и booking (`common`, `catalog`, `lodging`, `transport`, `transfer`, `booking`) и сгенерированный код (`scripts/gen-proto.sh`) |
 | `config/rules.yaml` | Бизнес-правила агента: стыковки, уточнения, наценка. Неверный файл — агент не стартует |
 | `web/` | React + Vite + Tailwind + shadcn/ui + Magic UI, отдаётся через Caddy |
+| `docs/`, `docs-site/` | Документация проекта и сайт на Docusaurus, который её показывает по адресу `/docs/` |
 | `deploy/` | docker-compose всего стека, Caddy, Prometheus, Grafana, init-скрипты баз |
 
 Синхронные вызовы между сервисами идут по gRPC, асинхронные (ход агента, события бронирования) — через NATS JetStream. Источник правды — PostgreSQL. Трейсы LLM — Langfuse, метрики — Prometheus и Grafana, воронка — база `analytics` в ClickHouse от Langfuse.
@@ -27,7 +28,7 @@ LLM — любой OpenAI-совместимый эндпоинт: `LLM_BASE_URL
 Нужен Docker с compose v2. Ключи не нужны: без ключа LLM агент работает на правилах.
 
 ```bash
-./run.sh        # приложение: сервисы, фронт, PostgreSQL, NATS — http://localhost
+./run.sh        # приложение: сервисы, фронт, PostgreSQL, NATS — http://localhost, документация — http://localhost/docs/
 ./run.sh full   # плюс Langfuse (http://localhost:3000), ClickHouse, Prometheus, Grafana (http://localhost:3001)
 ./run.sh down   # остановить, данные в томах остаются
 ```
@@ -40,7 +41,7 @@ LLM — любой OpenAI-совместимый эндпоинт: `LLM_BASE_URL
 docker compose -f deploy/docker-compose.yml -f deploy/docker-compose.build.yml up --build -d
 ```
 
-Разработка без контейнеров: Go 1.27, Node 24. `go test ./...`, `cd web && npm run dev` (проксирует `/api` на `localhost:8080`).
+Разработка без контейнеров: Go 1.27, Node 24. `go test ./...`, `cd web && npm run dev` (проксирует `/api` на `localhost:8080`), `cd docs-site && npm start` (документация с живой перезагрузкой на http://localhost:3000/docs/).
 
 ### Контракты
 

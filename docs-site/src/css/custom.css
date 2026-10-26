@@ -1,0 +1,5 @@
+/* Wide tables (sources, Q&A) scroll inside the page instead of breaking the layout. */
+.markdown table {
+  display: block;
+  overflow-x: auto;
+}

@@ -31,6 +31,7 @@ jobs:
           - { service: notifier, group: backend }
           - { service: migrate, group: backend }
           - { service: web, group: web }
+          - { service: docs, group: docs }
     env:
       CHANGED: ${{ needs.ci.outputs[matrix.group] }}
     steps:
@@ -51,6 +52,8 @@ jobs:
         if: env.CHANGED == 'true'
         with:
           context: ${{ matrix.service == 'web' && 'web' || '.' }}
+          # docs builds from the repository root (it needs docs/), with its Dockerfile in docs-site/.
+          file: ${{ matrix.service == 'docs' && 'docs-site/Dockerfile' || '' }}
           build-args: SERVICE=${{ matrix.service }}
           push: true
           tags: |
@@ -70,6 +73,7 @@ jobs:
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH || 'horkilion' }}
       BACKEND_CHANGED: ${{ needs.ci.outputs.backend }}
       WEB_CHANGED: ${{ needs.ci.outputs.web }}
+      DOCS_CHANGED: ${{ needs.ci.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
       - name: Registry name (GHCR requires lowercase)
@@ -113,11 +117,12 @@ jobs:
           # the new tag, so compose leaves the other containers alone.
           touch .image-tags
           . ./.image-tags
-          BACKEND_TAG="\${BACKEND_TAG:-latest}" WEB_TAG="\${WEB_TAG:-latest}"
+          BACKEND_TAG="\${BACKEND_TAG:-latest}" WEB_TAG="\${WEB_TAG:-latest}" DOCS_TAG="\${DOCS_TAG:-latest}"
           [ '$BACKEND_CHANGED' = true ] && BACKEND_TAG='${{ github.sha }}'
           [ '$WEB_CHANGED' = true ] && WEB_TAG='${{ github.sha }}'
-          export IMAGE_REGISTRY='$REGISTRY' BACKEND_TAG WEB_TAG
-          echo "backend: \$BACKEND_TAG, web: \$WEB_TAG"
+          [ '$DOCS_CHANGED' = true ] && DOCS_TAG='${{ github.sha }}'
+          export IMAGE_REGISTRY='$REGISTRY' BACKEND_TAG WEB_TAG DOCS_TAG
+          echo "backend: \$BACKEND_TAG, web: \$WEB_TAG, docs: \$DOCS_TAG"
           docker compose pull --quiet
           docker compose up -d --remove-orphans
           for i in \$(seq 1 30); do
@@ -125,7 +130,7 @@ jobs:
             if [ "\$i" = 30 ]; then docker compose ps; docker compose logs --tail=50 gateway booking agent migrate; exit 1; fi
             sleep 5
           done
-          printf 'BACKEND_TAG=%s\nWEB_TAG=%s\n' "\$BACKEND_TAG" "\$WEB_TAG" > .image-tags
+          printf 'BACKEND_TAG=%s\nWEB_TAG=%s\nDOCS_TAG=%s\n' "\$BACKEND_TAG" "\$WEB_TAG" "\$DOCS_TAG" > .image-tags
           docker image prune -f
           EOF
 

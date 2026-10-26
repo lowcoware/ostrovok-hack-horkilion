@@ -1,4 +1,30 @@
-web/node_modules/
+# Secrets: only the *.example templates are committed.
+.env
+.env.*
+!.env.example
+deploy/ci.env
+
+# Node: web/ and docs-site/
+node_modules/
 web/dist/
-deploy/.env
+docs-site/build/
+docs-site/.docusaurus/
+*.tsbuildinfo
+
+# Python: data/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Logs and coverage
 *.log
+coverage/
+coverage.out
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
