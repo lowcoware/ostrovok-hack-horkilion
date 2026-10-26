@@ -155,6 +155,12 @@
 - Сайт документации: `docs/` в виде сайта по адресу `/docs/` рядом с приложением. Технически: Docusaurus 3.10.2 в
   `docs-site/` (контент берётся из `docs/` без копирования), образ `horkilion-docs` (Caddy в `scratch`), сервис
   `docs` в compose, маршрут `/docs/*` в Caddyfile; группа `docs` в CI и деплое с тегом `DOCS_TAG`. (`6b8dfee`)
+- Мониторинг в Grafana: четыре дашборда (сервисы, агент и LLM, продуктовая воронка, сервер и контейнеры) и
+  метрики, без которых они пусты. Технически: `http_requests_total` и `http_request_duration_seconds` в gateway
+  (`platform.HTTPMetrics`), `grpc_server_handled_total` и `grpc_server_handling_seconds` на каждом gRPC-сервере,
+  `llm_requests_total`, `llm_request_duration_seconds`, `llm_tokens_total` в агенте; node-exporter и cAdvisor в
+  профиле `full`; дашборды в `deploy/grafana/dashboards` из генератора `deploy/grafana/gen_dashboards.py`,
+  фиксированные uid источников данных, домашняя страница — дашборд сервисов. (`3d96e2c`)
 - Гайд по деплою: подготовка сервера, секреты и переменные GitHub, первый деплой, откат, бэкапы, разбор ошибок,
   чеклист. Технически: `docs/deploy.md`, ссылка из README. (`4219b74`)
 
