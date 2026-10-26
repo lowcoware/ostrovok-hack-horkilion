@@ -137,7 +137,7 @@ def services():
         f'sum by (route, method) (rate(http_requests_total{{route!="unmatched"}}{RI}))', "{{method}} {{route}}")],
         unit="reqps", desc="Запросы в секунду к внешнему API."), 12, 8)
     b.add(timeseries("Доля ошибок 5xx", [prom(
-        f'sum(rate(http_requests_total{{code=~"5.."}}{RI})) / clamp_min(sum(rate(http_requests_total{RI})), 1e-9)',
+        f'(sum(rate(http_requests_total{{code=~"5.."}}{RI})) or vector(0)) / clamp_min(sum(rate(http_requests_total{RI})), 1e-9)',
         "5xx")], unit="percentunit", desc="Доля ответов gateway с кодом 5xx."), 6, 8)
     b.add(timeseries("Ответы 4xx по кодам", [prom(
         f'sum by (code) (rate(http_requests_total{{code=~"4.."}}{RI}))', "{{code}}")], unit="reqps",
@@ -177,16 +177,17 @@ def agent():
     b.add(stat("Ходов агента", [prom('sum(increase(agent_turns_total[$__range]))', instant=True)],
                decimals=0), 4, 4)
     b.add(stat("Ходов с ошибкой", [prom(
-        'sum(increase(agent_turns_total{result="error"}[$__range])) / clamp_min(sum(increase(agent_turns_total[$__range])), 1e-9)',
+        '(sum(increase(agent_turns_total{result="error"}[$__range])) or vector(0)) / clamp_min(sum(increase(agent_turns_total[$__range])), 1e-9)',
         instant=True)], unit="percentunit", thresholds=ERR_STEPS, decimals=1), 4, 4)
     b.add(stat("Ход, p95", [prom(
         'histogram_quantile(0.95, sum by (le) (increase(agent_turn_duration_seconds_bucket[$__range])))',
         instant=True)], unit="s", decimals=1,
         thresholds=[{"color": "green", "value": None}, {"color": "orange", "value": 20}, {"color": "red", "value": 60}]),
         4, 4)
-    b.add(stat("Вызовов LLM", [prom('sum(increase(llm_requests_total[$__range]))', instant=True)], decimals=0), 4, 4)
+    b.add(stat("Вызовов LLM", [prom('sum(increase(llm_requests_total[$__range])) or vector(0)', instant=True)],
+               decimals=0), 4, 4)
     b.add(stat("Ошибки LLM", [prom(
-        'sum(increase(llm_requests_total{result="error"}[$__range])) / clamp_min(sum(increase(llm_requests_total[$__range])), 1e-9)',
+        '(sum(increase(llm_requests_total{result="error"}[$__range])) or vector(0)) / clamp_min(sum(increase(llm_requests_total[$__range])) or vector(0), 1e-9)',
         instant=True)], unit="percentunit", thresholds=ERR_STEPS, decimals=1), 4, 4)
     b.add(stat("Токенов", [prom('sum by (type) (increase(llm_tokens_total[$__range]))', "{{type}}", instant=True)],
                decimals=0, text_mode="value_and_name"), 4, 4)

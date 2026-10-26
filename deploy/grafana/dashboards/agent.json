@@ -125,7 +125,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(agent_turns_total{result=\"error\"}[$__range])) / clamp_min(sum(increase(agent_turns_total[$__range])), 1e-9)",
+          "expr": "(sum(increase(agent_turns_total{result=\"error\"}[$__range])) or vector(0)) / clamp_min(sum(increase(agent_turns_total[$__range])), 1e-9)",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,
@@ -263,7 +263,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(llm_requests_total[$__range]))",
+          "expr": "sum(increase(llm_requests_total[$__range])) or vector(0)",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,
@@ -324,7 +324,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(increase(llm_requests_total{result=\"error\"}[$__range])) / clamp_min(sum(increase(llm_requests_total[$__range])), 1e-9)",
+          "expr": "(sum(increase(llm_requests_total{result=\"error\"}[$__range])) or vector(0)) / clamp_min(sum(increase(llm_requests_total[$__range])) or vector(0), 1e-9)",
           "legendFormat": "__auto",
           "refId": "A",
           "instant": true,

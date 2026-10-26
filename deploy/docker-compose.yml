@@ -280,7 +280,8 @@ services:
     restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # The directory, not the file: a replaced file stays invisible to a file mount.
+      - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
 
   grafana:

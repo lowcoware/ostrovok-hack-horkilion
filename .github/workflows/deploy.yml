@@ -140,8 +140,12 @@ jobs:
           echo "backend: \$BACKEND_TAG, web: \$WEB_TAG, docs: \$DOCS_TAG"
           docker compose pull --quiet
           docker compose up -d --remove-orphans
+          # Prometheus and Grafana read their mounted configs only on start.
+          if docker compose ps --services --status running | grep -qx grafana; then docker compose restart prometheus grafana; fi
+          # This script arrives on stdin: every command that could read stdin gets
+          # </dev/null, or it swallows the rest of the script.
           for i in \$(seq 1 30); do
-            if docker compose exec -T gateway /app healthcheck; then echo "gateway is healthy"; break; fi
+            if docker compose exec -T gateway /app healthcheck </dev/null; then echo "gateway is healthy"; break; fi
             if [ "\$i" = 30 ]; then docker compose ps; docker compose logs --tail=50 gateway booking agent migrate; exit 1; fi
             sleep 5
           done

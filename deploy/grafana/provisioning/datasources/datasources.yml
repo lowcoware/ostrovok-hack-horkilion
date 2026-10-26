@@ -1,5 +1,15 @@
 apiVersion: 1
 
+# Grafana cannot change the uid of an existing data source, so the ones created
+# before the uids were fixed are deleted and recreated on start.
+# impulse: deleted and recreated on every start, drop this list once every
+# installation has started with the fixed uids.
+deleteDatasources:
+  - name: Prometheus
+    orgId: 1
+  - name: ClickHouse analytics
+    orgId: 1
+
 datasources:
   # Fixed uids: the provisioned dashboards refer to the data sources by uid.
   - name: Prometheus
