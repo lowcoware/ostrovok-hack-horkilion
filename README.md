@@ -79,29 +79,9 @@ VITE_API_TARGET=https://<домен приложения> npm run dev
 
 ## Деплой через GitHub Actions
 
-На каждый push в `main` workflow `Deploy` прогоняет CI, собирает изменившиеся образы в GHCR (`ghcr.io/<owner>/horkilion-*:<sha>`), копирует `deploy/` на сервер по SSH и делает `docker compose pull && up -d`. Go-сервисы и фронт живут под разными тегами, текущие теги сервер хранит в `~/horkilion/.image-tags`. Деплой считается успешным, когда `gateway` проходит health-проверку. На сервере в `deploy/.env` должно стоять `COMPOSE_PROFILES=full`, иначе Langfuse и Grafana не поднимутся.
+На каждый push в `main` workflow `Deploy` прогоняет CI, собирает изменившиеся образы в GHCR (`ghcr.io/<owner>/horkilion-*:<sha>`), по SSH готовит `.env` на сервере (на первом деплое — со свежими секретами) и делает `docker compose pull && up -d`. Деплой успешен, когда `gateway` проходит проверку здоровья.
 
-### Сервер (один раз)
-
-1. Linux с Docker и compose-плагином. Весь стек в простое занимает около 2,3 ГБ RAM, из них 85% приходится на Langfuse с ClickHouse, сами сервисы около 100 МБ. С запасом на пики ClickHouse берите 4 ГБ минимум, комфортно 8 ГБ. Образы собираются в CI, на сервере сборки нет. Открыть порты 80 и 443, для доступа по портам ещё 3000 и 3001.
-2. Пользователь для деплоя в группе `docker`, вход по SSH-ключу.
-3. Создать `~/horkilion/.env` из [`deploy/.env.example`](deploy/.env.example). Для HTTPS указать домены в `SITE_ADDRESS`, `LANGFUSE_ADDRESS`, `GRAFANA_ADDRESS` (A-записи должны смотреть на сервер), Caddy сам получит сертификаты. `IMAGE_REGISTRY=ghcr.io/<owner в нижнем регистре>`.
-
-### Настройки репозитория
-
-Settings → Environments → создать `production` и добавить секреты:
-
-| Секрет | Значение |
-|---|---|
-| `SSH_HOST` | адрес сервера |
-| `SSH_USER` | пользователь для деплоя |
-| `SSH_PORT` | порт SSH, если не 22 |
-| `SSH_PRIVATE_KEY` | приватный ключ, публичная часть в `~/.ssh/authorized_keys` на сервере |
-| `SSH_KNOWN_HOSTS` | вывод `ssh-keyscan -p <порт> <хост>` |
-
-Необязательная переменная `DEPLOY_PATH` (Settings → Variables) задаёт каталог на сервере, по умолчанию `horkilion` в домашнем каталоге.
-
-Workflow логинит сервер в GHCR токеном самого запуска и разлогинивает в конце. Чтобы вручную делать `docker compose pull` на сервере, нужен свой `docker login ghcr.io` с PAT (scope `read:packages`), либо пакеты надо сделать публичными.
+Подготовка сервера, секреты и переменные GitHub, первый деплой, откат, бэкапы и разбор ошибок — в гайде [docs/deploy.md](docs/deploy.md). Коротко, в окружении `production` нужны секреты `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, при необходимости `SSH_PORT` и `LLM_API_KEY`.
 
 ## Что осознанно упрощено
 

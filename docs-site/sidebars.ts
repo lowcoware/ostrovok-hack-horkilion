@@ -13,6 +13,7 @@ const sidebars: SidebarsConfig = {
   docs: [
     "spec",
     "roadmap",
+    "deploy",
     "case",
     "models",
     category("Решения (ADR)", "adr"),

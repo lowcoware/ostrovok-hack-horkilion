@@ -100,8 +100,22 @@ jobs:
       - name: Copy deploy files
         run: |
           ssh server "mkdir -p '$DEPLOY_PATH'"
-          scp -r deploy/docker-compose.yml deploy/.env.example deploy/caddy deploy/postgres \
+          scp -r deploy/docker-compose.yml deploy/.env.example deploy/server-env.sh deploy/caddy deploy/postgres \
             deploy/clickhouse deploy/prometheus deploy/grafana "server:$DEPLOY_PATH/"
+
+      - name: Prepare .env on the server
+        # The first deploy creates .env with fresh secrets; every deploy writes the
+        # values kept in GitHub into it. The LLM key goes over stdin, never into a
+        # command line. Empty variables leave the value in .env untouched.
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          SITE_ADDRESS: ${{ vars.SITE_ADDRESS }}
+          LANGFUSE_ADDRESS: ${{ vars.LANGFUSE_ADDRESS }}
+          GRAFANA_ADDRESS: ${{ vars.GRAFANA_ADDRESS }}
+          LANGFUSE_URL: ${{ vars.LANGFUSE_URL }}
+        run: |
+          printf '%s' "$LLM_API_KEY" | ssh server "bash '$DEPLOY_PATH/server-env.sh' '$REGISTRY' \
+            '$SITE_ADDRESS' '$LANGFUSE_ADDRESS' '$GRAFANA_ADDRESS' '$LANGFUSE_URL'"
 
       - name: Log in to GHCR on the server
         # The token goes over stdin, never into a command line on the server.
@@ -112,7 +126,7 @@ jobs:
           ssh server "bash -s" <<EOF
           set -euo pipefail
           cd '$DEPLOY_PATH'
-          test -f .env || { echo "deploy/.env is missing on the server, copy .env.example and fill it in"; exit 1; }
+          test -f .env || { echo ".env is missing on the server, the previous step should have created it"; exit 1; }
           # .image-tags remembers what runs now. Only the changed group gets
           # the new tag, so compose leaves the other containers alone.
           touch .image-tags
