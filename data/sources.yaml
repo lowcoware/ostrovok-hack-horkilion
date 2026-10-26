@@ -1,0 +1,800 @@
+# Реестр источников данных для страницы «Откуда данные» (spec.md, раздел 6; формат — спека 0003, CFC-3).
+# Имя provider — то, что пишется в поле sources у записей снапшота.
+# status: used — источник взят в прототип; considered — рассмотрен и не взят, причина в reason.
+# license и fetched_at заполняются в P1-DS-08.1 и при загрузке данных; пустые значения — ещё не заполнены.
+
+# --- Источники в прототип ----------------------------------------------------
+
+- provider: open-meteo
+  title: Open-Meteo
+  url: https://open-meteo.com
+  license: CC-BY-4.0
+  kind: real
+  status: used
+  used_for: [прогноз погоды, климат по месяцам, температура моря, световой день, качество воздуха и пыльца]
+  fetched_at: null
+  reason: ""
+
+- provider: ourairports
+  title: OurAirports
+  url: https://ourairports.com/data/
+  license: ""
+  kind: real
+  status: used
+  used_for: [аэропорты, коды IATA, координаты]
+  fetched_at: null
+  reason: ""
+
+- provider: geonames
+  title: GeoNames
+  url: https://www.geonames.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [города, население, часовые пояса]
+  fetched_at: null
+  reason: ""
+
+- provider: osm
+  title: OpenStreetMap (Overpass)
+  url: https://www.openstreetmap.org
+  license: ODbL-1.0
+  kind: real
+  status: used
+  used_for: [отели, звёзды, время заезда и выезда, животные и доступность, пляжи]
+  fetched_at: null
+  reason: ""
+
+- provider: foursquare-os-places
+  title: Foursquare OS Places
+  url: https://opensource.foursquare.com/os-places/
+  license: ""
+  kind: real
+  status: used
+  used_for: [POI и отели в дополнение к OSM]
+  fetched_at: null
+  reason: ""
+
+- provider: overture-maps
+  title: Overture Maps Places
+  url: https://overturemaps.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [POI и отели в дополнение к OSM]
+  fetched_at: null
+  reason: ""
+
+- provider: opentripmap
+  title: OpenTripMap
+  url: https://opentripmap.io
+  license: ""
+  kind: real
+  status: used
+  used_for: [достопримечательности]
+  fetched_at: null
+  reason: ""
+
+- provider: wikivoyage
+  title: Wikivoyage
+  url: https://www.wikivoyage.org
+  license: CC-BY-SA
+  kind: real
+  status: used
+  used_for: [контент о направлениях]
+  fetched_at: null
+  reason: ""
+
+- provider: wikimedia-commons
+  title: Wikimedia Commons
+  url: https://commons.wikimedia.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [фото направлений]
+  fetched_at: null
+  reason: ""
+
+- provider: unsplash
+  title: Unsplash
+  url: https://unsplash.com
+  license: ""
+  kind: real
+  status: used
+  used_for: [фото направлений, запасной вариант]
+  fetched_at: null
+  reason: ""
+
+- provider: nominatim
+  title: Nominatim
+  url: https://nominatim.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [геокодинг]
+  fetched_at: null
+  reason: ""
+
+- provider: photon
+  title: Photon
+  url: https://photon.komoot.io
+  license: ""
+  kind: real
+  status: used
+  used_for: [геокодинг]
+  fetched_at: null
+  reason: ""
+
+- provider: osrm
+  title: OSRM
+  url: https://project-osrm.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [время в пути для трансферов]
+  fetched_at: null
+  reason: ""
+
+- provider: openrouteservice
+  title: openrouteservice
+  url: https://openrouteservice.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [время в пути для трансферов]
+  fetched_at: null
+  reason: ""
+
+- provider: yandex-rasp
+  title: API Яндекс Расписаний
+  url: https://yandex.ru/dev/rasp/
+  license: ""
+  kind: real
+  status: used
+  used_for: [расписания поездов, самолётов и электричек по России]
+  fetched_at: null
+  reason: ""
+
+- provider: trainline-stations
+  title: trainline-eu/stations
+  url: https://github.com/trainline-eu/stations
+  license: ""
+  kind: real
+  status: used
+  used_for: [ж/д станции и города Европы]
+  fetched_at: null
+  reason: ""
+
+- provider: aviasales-data-api
+  title: Aviasales Data API (Travelpayouts)
+  url: ""
+  license: ""
+  kind: real
+  status: used
+  used_for: [уровень цен на авиабилеты для калибровки]
+  fetched_at: null
+  reason: ""
+
+- provider: duffel
+  title: Duffel (тестовый режим)
+  url: https://duffel.com
+  license: ""
+  kind: real
+  status: used
+  used_for: [тестовое бронирование авиабилетов]
+  fetched_at: null
+  reason: ""
+
+- provider: hotelbeds
+  title: Hotelbeds (evaluation)
+  url: https://developer.hotelbeds.com
+  license: ""
+  kind: real
+  status: used
+  used_for: [сверка структуры с реальным поставщиком отелей]
+  fetched_at: null
+  reason: ""
+
+- provider: passport-index-data
+  title: Passport Index Data
+  url: https://github.com/imorte/passport-index-data
+  license: MIT
+  kind: real
+  status: used
+  used_for: [визовый режим по всем паспортам]
+  fetched_at: null
+  reason: ""
+
+- provider: wheretoemigrate
+  title: whereTOemigrate
+  url: ""
+  license: ""
+  kind: real
+  status: used
+  used_for: [сверка визового режима]
+  fetched_at: null
+  reason: ""
+
+- provider: mid-ru
+  title: Консульский департамент МИД России
+  url: https://www.kdmid.ru
+  license: ""
+  kind: real
+  status: used
+  used_for: [сверка визового режима для паспорта РФ]
+  fetched_at: null
+  reason: ""
+
+- provider: cbr
+  title: ЦБ РФ
+  url: https://www.cbr.ru
+  license: ""
+  kind: real
+  status: used
+  used_for: [курсы валют]
+  fetched_at: null
+  reason: ""
+
+- provider: frankfurter
+  title: Frankfurter
+  url: https://frankfurter.dev
+  license: ""
+  kind: real
+  status: used
+  used_for: [курсы валют]
+  fetched_at: null
+  reason: ""
+
+- provider: nager-date
+  title: Nager.Date
+  url: https://date.nager.at
+  license: ""
+  kind: real
+  status: used
+  used_for: [праздники]
+  fetched_at: null
+  reason: ""
+
+- provider: isdayoff
+  title: isdayoff.ru
+  url: https://isdayoff.ru
+  license: ""
+  kind: real
+  status: used
+  used_for: [производственный календарь РФ]
+  fetched_at: null
+  reason: ""
+
+- provider: xmlcalendar
+  title: xmlcalendar.ru
+  url: https://xmlcalendar.ru
+  license: ""
+  kind: real
+  status: used
+  used_for: [производственный календарь РФ]
+  fetched_at: null
+  reason: ""
+
+- provider: gov-uk-travel-advice
+  title: GOV.UK Foreign Travel Advice
+  url: https://www.gov.uk/foreign-travel-advice
+  license: ""
+  kind: real
+  status: used
+  used_for: [рекомендации для туристов по странам]
+  fetched_at: null
+  reason: ""
+
+- provider: google-travel-impact-model
+  title: Google Travel Impact Model
+  url: https://github.com/google/travel-impact-model
+  license: ""
+  kind: real
+  status: used
+  used_for: [выбросы CO2 по перелётам]
+  fetched_at: null
+  reason: ""
+
+- provider: rosstat
+  title: Росстат и ЕМИСС, средние потребительские цены
+  url: https://rosstat.gov.ru
+  license: ""
+  kind: real
+  status: used
+  used_for: [средние цены на проживание для калибровки]
+  fetched_at: null
+  reason: ""
+
+- provider: wikimedia-pageviews
+  title: Wikimedia Pageviews
+  url: https://pageviews.wmcloud.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [популярность направлений]
+  fetched_at: null
+  reason: ""
+
+- provider: opentravel-codes
+  title: Коды OpenTravel HAC и RMA
+  url: https://opentravel.org
+  license: ""
+  kind: real
+  status: used
+  used_for: [таксономия удобств отеля и номера]
+  fetched_at: null
+  reason: ""
+
+- provider: yandex-geo-reviews-2023
+  title: geo-reviews-dataset-2023 (Яндекс)
+  url: https://github.com/yandex/geo-reviews-dataset-2023
+  license: ""
+  kind: real
+  status: used
+  used_for: [отзывы об организациях России, в том числе гостиницах]
+  fetched_at: null
+  reason: ""
+
+- provider: hotel-reviews-europe-515k
+  title: 515K Hotel Reviews Data in Europe
+  url: https://www.kaggle.com/datasets/jiashenliu/515k-hotel-reviews-data-in-europe
+  license: ""
+  kind: real
+  status: used
+  used_for: [отзывы об отелях Европы]
+  fetched_at: null
+  reason: ""
+
+- provider: hotel-booking-demand
+  title: Hotel Booking Demand
+  url: https://www.kaggle.com/datasets/jessemostipak/hotel-booking-demand
+  license: ""
+  kind: real
+  status: used
+  used_for: [отмены и сезонность бронирований для калибровки]
+  fetched_at: null
+  reason: ""
+
+- provider: tourist-tax
+  title: Туристический налог (решения муниципалитетов, ФНС)
+  url: https://www.nalog.gov.ru
+  license: ""
+  kind: real
+  status: used
+  used_for: [туристический налог по городам России]
+  fetched_at: null
+  reason: ""
+
+- provider: faker
+  title: Faker
+  url: https://github.com/joke2k/faker
+  license: ""
+  kind: synthetic
+  status: used
+  used_for: [синтетические имена, адреса, тексты]
+  fetched_at: null
+  reason: ""
+
+- provider: mimesis
+  title: Mimesis
+  url: https://github.com/lk-geimfari/mimesis
+  license: ""
+  kind: synthetic
+  status: used
+  used_for: [синтетические имена, адреса, тексты]
+  fetched_at: null
+  reason: ""
+
+- provider: faker-js
+  title: Faker.js
+  url: https://github.com/faker-js/faker
+  license: ""
+  kind: synthetic
+  status: used
+  used_for: [синтетические имена, адреса, тексты]
+  fetched_at: null
+  reason: ""
+
+# --- Что генерируем -------------------------------------------------------------
+
+- provider: synthetic
+  title: Синтетические данные
+  url: ""
+  license: ""
+  kind: synthetic
+  status: used
+  used_for: [цены на ночь с сезонностью, наличие номеров, питание, условия отмены, правила для животных и детей, цены на авиабилеты и ж/д, трансферы]
+  fetched_at: null
+  reason: ""
+
+# --- Рассмотренные и не взятые ------------------------------------------------
+
+- provider: tripadvisor-content-api
+  title: TripAdvisor Content API
+  url: https://www.tripadvisor.com/developers
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "узкие условия для AI, по сторонним данным закрывается 2026-08-31"
+
+- provider: tripadvisor-ru-reviews-corpus
+  title: Корпус русских отзывов TripAdvisor (CEUR-WS, 2018)
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "ссылку на скачивание не нашли"
+
+- provider: opensky
+  title: OpenSky Network
+  url: https://opensky-network.org
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "только исследования и некоммерческое использование; в запасе для реального времени полёта"
+
+- provider: rosstat-tourism
+  title: Сборники Росстата «Туризм»
+  url: https://rosstat.gov.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "только PDF"
+
+- provider: accommodation-registry
+  title: Реестр классифицированных средств размещения
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "нет открытой выгрузки"
+
+- provider: kiwi-tequila
+  title: Kiwi.com Tequila
+  url: https://tequila.kiwi.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "бронирование только по договору"
+
+- provider: kudago
+  title: KudaGo API
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "нет актуальной документации и лимитов"
+
+- provider: ticketmaster-discovery
+  title: Ticketmaster Discovery
+  url: https://developer.ticketmaster.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "Россию почти не покрывает"
+
+- provider: aerodatabox
+  title: AeroDataBox
+  url: https://aerodatabox.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "бесплатных лимитов не хватит на демо"
+
+- provider: aviationstack
+  title: Aviationstack
+  url: https://aviationstack.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "бесплатных лимитов не хватит на демо"
+
+- provider: mobility-database
+  title: Mobility Database (GTFS)
+  url: https://mobilitydatabase.org
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "в запасе для общественного транспорта до отеля"
+
+- provider: openskimap
+  title: OpenSkiMap
+  url: https://openskimap.org
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "лицензия не проверена; в запасе для горнолыжных запросов"
+
+- provider: us-state-travel-advisories
+  title: Travel advisories Госдепартамента США
+  url: https://travel.state.gov
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "эндпоинт описан только сторонним пакетом"
+
+- provider: wherenext
+  title: WhereNext
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "лицензия только по заявлению сайта"
+
+- provider: blue-flag
+  title: Пляжи с Голубым флагом (UNEP)
+  url: https://www.blueflag.global
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "актуальность и лицензия не проверены"
+
+- provider: yandex-wordstat-api
+  title: Yandex Wordstat API
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "в превью и платный"
+
+- provider: resort-fund-registry
+  title: Реестр курортного фонда
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "нет открытого набора данных"
+
+- provider: airline-pet-policies
+  title: Политики авиакомпаний по животным
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "открытого датасета нет, соберём вручную при необходимости"
+
+- provider: ru-dialog-datasets
+  title: Русские диалоговые датасеты
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "не про туризм; тестовые диалоги генерируем сами"
+
+- provider: yandex-travel-partner-api
+  title: API партнёрской сети Яндекс Путешествий
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "ключ по заявке, данные конкурента; решение команды — Q-003"
+
+- provider: unitiki
+  title: Unitiki
+  url: https://unitiki.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "только партнёрские программы"
+
+- provider: busfor
+  title: Busfor
+  url: https://busfor.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "только партнёрские программы"
+
+- provider: russpass
+  title: Russpass
+  url: https://russpass.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "API для поставщиков, а не для чтения"
+
+- provider: emiss-accommodation-stats
+  title: ЕМИСС, статистика размещения по регионам
+  url: https://www.fedstat.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "формат выгрузки не проверен; в запасе для калибровки сезонности"
+
+- provider: data-mos-ru
+  title: data.mos.ru
+  url: https://data.mos.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "наборов по гостиницам не нашли"
+
+- provider: data-gov-spb-ru
+  title: data.gov.spb.ru
+  url: https://data.gov.spb.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "наборов по гостиницам не нашли"
+
+- provider: cultural-heritage-registry
+  title: Реестр объектов культурного наследия
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "нет машиночитаемой выгрузки"
+
+- provider: subsidized-flights
+  title: Субсидированные авиарейсы
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "нет машиночитаемого перечня"
+
+- provider: rospotrebnadzor-beaches
+  title: Пляжи, допущенные к купанию (Роспотребнадзор)
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "нет единого реестра"
+
+- provider: protected-areas
+  title: Границы ООПТ (Росреестр, gis-lab)
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "для запросов «на природу» хватает OSM"
+
+- provider: ferries
+  title: Паромы
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "данных о действующих линиях нет"
+
+- provider: amadeus-self-service
+  title: Amadeus Self-Service
+  url: https://developers.amadeus.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "отключён 2026-07-17"
+
+- provider: hotellook-api
+  title: Hotellook API
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "закрыт 2025-10-20"
+
+- provider: etg-api
+  title: ETG API (Островок)
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "только для партнёров с договором; кейс исключает данные Островка"
+
+- provider: openflights
+  title: OpenFlights
+  url: https://openflights.org
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "не обновляется с 2014 года"
+
+- provider: inside-airbnb
+  title: Inside Airbnb
+  url: https://insideairbnb.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "в основном западные города"
+
+- provider: 2gis-api
+  title: 2ГИС API
+  url: ""
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "рабочий доступ платный"
+
+- provider: tutu
+  title: Туту.ру
+  url: https://www.tutu.ru
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "открытого API нет"
+
+- provider: numbeo
+  title: Numbeo
+  url: https://www.numbeo.com
+  license: ""
+  kind: real
+  status: considered
+  used_for: []
+  fetched_at: null
+  reason: "API и коммерческое использование платные"
