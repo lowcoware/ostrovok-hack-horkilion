@@ -1,5 +1,12 @@
 package gateway
 
+import (
+	"strings"
+	"time"
+
+	"horkilion/internal/dataset"
+)
+
 // Provider describes a data source for the "Откуда данные" page.
 type Provider struct {
 	Provider    string   `json:"provider"`
@@ -12,24 +19,30 @@ type Provider struct {
 	UsedFor     []string `json:"used_for"`
 }
 
-// providers lists the sources the current supplier providers use. The names
-// match Source.provider on the entities.
-// impulse: a static list, serve it from the supplier services when phase 1 loads datasets with real fetch dates.
-var providers = []Provider{
-	{
-		Provider:    "open-meteo",
-		Title:       "Open-Meteo",
-		Description: "Прогноз погоды на ближайшие две недели и архив наблюдений для дат дальше.",
-		Kind:        "real",
-		URL:         "https://open-meteo.com",
-		License:     "CC-BY-4.0",
-		UsedFor:     []string{"погода", "координаты городов"},
-	},
-	{
-		Provider:    "synthetic",
-		Title:       "Синтетические данные",
-		Description: "Отели и цены, сгенерированные детерминированно: один и тот же запрос всегда даёт ту же цену.",
-		Kind:        "synthetic",
-		UsedFor:     []string{"отели", "цены на проживание"},
-	},
+var kindNotes = map[string]string{
+	"real":      "Открытые данные",
+	"synthetic": "Сгенерировано по параметрам калибровки, один и тот же запрос даёт ту же цену",
+	"derived":   "Рассчитано из открытых данных",
+}
+
+// Providers turns the source registry of the data snapshot into the list of
+// the "Откуда данные" page: only providers the snapshot uses. Records of the
+// snapshot reference nothing else, dataset.Load checks that.
+func Providers(registry []dataset.SourceInfo) []Provider {
+	out := make([]Provider, 0, len(registry))
+	for _, s := range registry {
+		if s.Status != "used" {
+			continue
+		}
+		p := Provider{
+			Provider: s.Provider, Title: s.Title, Kind: s.Kind, URL: s.URL, License: s.License,
+			UsedFor:     append([]string{}, s.UsedFor...),
+			Description: kindNotes[s.Kind] + ". Используется для: " + strings.Join(s.UsedFor, ", ") + ".",
+		}
+		if !s.FetchedAt.IsZero() {
+			p.FetchedAt = s.FetchedAt.UTC().Format(time.RFC3339)
+		}
+		out = append(out, p)
+	}
+	return out
 }

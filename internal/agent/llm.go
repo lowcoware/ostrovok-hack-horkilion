@@ -10,6 +10,8 @@ import (
 
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -37,6 +39,39 @@ type LLMConfig struct {
 }
 
 const defaultExtraBody = `{"provider":{"data_collection":"deny"}}`
+
+// LLM metrics for Grafana; the same calls are traced in Langfuse with their
+// prompts. call is the kind of request: router, tools or reply.
+var (
+	llmRequests = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "llm_requests_total",
+		Help: "LLM requests by call, model and result.",
+	}, []string{"call", "model", "result"})
+	llmDuration = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "llm_request_duration_seconds",
+		Help:    "LLM request duration by call and model, until the last streamed token.",
+		Buckets: prometheus.ExponentialBuckets(0.25, 2, 9),
+	}, []string{"call", "model"})
+	llmTokens = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "llm_tokens_total",
+		Help: "LLM tokens by model and type (input, output).",
+	}, []string{"model", "type"})
+)
+
+// observeLLM records one finished request. Use it deferred with the start time.
+func observeLLM(call, model string, start time.Time, err error) {
+	result := "ok"
+	if err != nil {
+		result = "error"
+	}
+	llmRequests.WithLabelValues(call, model, result).Inc()
+	llmDuration.WithLabelValues(call, model).Observe(time.Since(start).Seconds())
+}
+
+func countTokens(model string, input, output int64) {
+	llmTokens.WithLabelValues(model, "input").Add(float64(input))
+	llmTokens.WithLabelValues(model, "output").Add(float64(output))
+}
 
 // LLMConfigFromEnv reads LLM_BASE_URL, LLM_API_KEY, LLM_MODEL, LLM_ROUTER_MODEL
 // and LLM_EXTRA_BODY. OPENROUTER_API_KEY is still read as a fallback key name.
@@ -80,7 +115,8 @@ func NewLLM(cfg LLMConfig) *LLM {
 func (l *LLM) Complete(ctx context.Context, system, user string) (out string, err error) {
 	messages := []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(system), openai.UserMessage(user)}
 	ctx, span := startGeneration(ctx, "router-llm", l.routerModel, messages)
-	defer func() { endSpan(span, out, err) }()
+	start := time.Now()
+	defer func() { endSpan(span, out, err); observeLLM("router", l.routerModel, start, err) }()
 
 	resp, err := l.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model:       l.routerModel,
@@ -91,17 +127,43 @@ func (l *LLM) Complete(ctx context.Context, system, user string) (out string, er
 		return "", err
 	}
 	span.SetAttributes(tracing.InputTokens.Int64(resp.Usage.PromptTokens), tracing.OutputTokens.Int64(resp.Usage.CompletionTokens))
+	countTokens(l.routerModel, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
 	if len(resp.Choices) == 0 {
 		return "", errors.New("router model returned no choices")
 	}
 	return resp.Choices[0].Message.Content, nil
 }
 
+// Chat returns one non-streamed answer of the main model that may call the
+// given tools.
+func (l *LLM) Chat(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolUnionParam) (msg openai.ChatCompletionMessage, err error) {
+	ctx, span := startGeneration(ctx, "reply-llm-tools", l.model, messages)
+	start := time.Now()
+	defer func() { endSpan(span, msg.RawJSON(), err); observeLLM("tools", l.model, start, err) }()
+
+	resp, err := l.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model:       l.model,
+		Temperature: openai.Float(0.4),
+		Messages:    messages,
+		Tools:       tools,
+	})
+	if err != nil {
+		return openai.ChatCompletionMessage{}, err
+	}
+	span.SetAttributes(tracing.InputTokens.Int64(resp.Usage.PromptTokens), tracing.OutputTokens.Int64(resp.Usage.CompletionTokens))
+	countTokens(l.model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+	if len(resp.Choices) == 0 {
+		return openai.ChatCompletionMessage{}, errors.New("model returned no choices")
+	}
+	return resp.Choices[0].Message, nil
+}
+
 // Stream streams an answer from the main model, calling onToken for each chunk,
 // and returns the full text.
 func (l *LLM) Stream(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, onToken func(string)) (out string, err error) {
 	ctx, span := startGeneration(ctx, "reply-llm", l.model, messages)
-	defer func() { endSpan(span, out, err) }()
+	start := time.Now()
+	defer func() { endSpan(span, out, err); observeLLM("reply", l.model, start, err) }()
 
 	stream := l.client.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
 		Model:         l.model,
@@ -117,6 +179,7 @@ func (l *LLM) Stream(ctx context.Context, messages []openai.ChatCompletionMessag
 		// With include_usage the last chunk carries token counts and no choices.
 		if u := chunk.Usage; u.TotalTokens > 0 {
 			span.SetAttributes(tracing.InputTokens.Int64(u.PromptTokens), tracing.OutputTokens.Int64(u.CompletionTokens))
+			countTokens(l.model, u.PromptTokens, u.CompletionTokens)
 		}
 		if len(chunk.Choices) == 0 {
 			continue

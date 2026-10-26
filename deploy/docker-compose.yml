@@ -1,6 +1,7 @@
-# Full stack: services, frontend, PostgreSQL, NATS, Langfuse (with ClickHouse,
-# Redis, MinIO), Prometheus and Grafana. Secrets come from deploy/.env, see
-# .env.example. Only Caddy (web) publishes ports.
+# The default profile is the application: services, frontend, PostgreSQL and
+# NATS. The "full" profile adds Langfuse (with ClickHouse, Redis, MinIO),
+# Prometheus and Grafana: COMPOSE_PROFILES=full in deploy/.env or ./run.sh full.
+# Secrets come from deploy/.env, see .env.example. Only Caddy (web) publishes ports.
 
 x-service: &service
   restart: unless-stopped
@@ -33,9 +34,9 @@ services:
     image: ${IMAGE_REGISTRY:-horkilion}/horkilion-inventory:${BACKEND_TAG:-latest}
     environment:
       CATALOG_PROVIDER: ${CATALOG_PROVIDER:-open-data}
-      LODGING_PROVIDER: ${LODGING_PROVIDER:-synthetic}
-      TRANSPORT_PROVIDER: ${TRANSPORT_PROVIDER:-stub}
-      TRANSFER_PROVIDER: ${TRANSFER_PROVIDER:-stub}
+      LODGING_PROVIDER: ${LODGING_PROVIDER:-osm}
+      TRANSPORT_PROVIDER: ${TRANSPORT_PROVIDER:-synthetic}
+      TRANSFER_PROVIDER: ${TRANSFER_PROVIDER:-synthetic}
 
   booking:
     <<: *service
@@ -64,7 +65,8 @@ services:
       LLM_ROUTER_MODEL: ${LLM_ROUTER_MODEL:-qwen/qwen3.8-27b}
       # JSON merged into every LLM request; empty means {"provider":{"data_collection":"deny"}}.
       LLM_EXTRA_BODY: ${LLM_EXTRA_BODY:-}
-      CLICKHOUSE_URL: http://clickhouse:8123
+      # Funnel analytics; empty disables them (the default profile has no ClickHouse).
+      CLICKHOUSE_URL: ${ANALYTICS_URL-http://clickhouse:8123}
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD}
       # Traces go to the project Langfuse creates from LANGFUSE_INIT_*; empty keys disable tracing.
@@ -83,17 +85,19 @@ services:
       DATABASE_URL: *db-url
       NATS_URL: nats://nats:4222
       BOOKING_ADDR: booking:9000
+      INVENTORY_ADDR: inventory:9000
     depends_on:
       migrate: { condition: service_completed_successfully }
       nats: { condition: service_started }
       booking: { condition: service_healthy }
+      inventory: { condition: service_healthy }
 
   notifier:
     <<: *service
     image: ${IMAGE_REGISTRY:-horkilion}/horkilion-notifier:${BACKEND_TAG:-latest}
     environment:
       NATS_URL: nats://nats:4222
-      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_URL: ${ANALYTICS_URL-http://clickhouse:8123}
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     depends_on:
@@ -107,10 +111,12 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
+      - "8080:8080"
       - "3000:3000"
       - "3001:3001"
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      API_ADDRESS: ${API_ADDRESS:-:8080}
       LANGFUSE_ADDRESS: ${LANGFUSE_ADDRESS:-:3000}
       GRAFANA_ADDRESS: ${GRAFANA_ADDRESS:-:3001}
     volumes:
@@ -119,6 +125,14 @@ services:
       - caddy_config:/config
     depends_on:
       gateway: { condition: service_healthy }
+
+  # Documentation site (docs/ rendered by Docusaurus), served by web under /docs/.
+  docs:
+    image: ${IMAGE_REGISTRY:-horkilion}/horkilion-docs:${DOCS_TAG:-latest}
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
 
   # --- Infrastructure -------------------------------------------------------
 
@@ -154,6 +168,7 @@ services:
 
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
+    profiles: [full]
     restart: unless-stopped
     depends_on: &langfuse-depends-on
       postgres: { condition: service_healthy }
@@ -191,6 +206,7 @@ services:
 
   langfuse-web:
     image: docker.langfuse.com/langfuse/langfuse:4
+    profiles: [full]
     restart: unless-stopped
     depends_on: *langfuse-depends-on
     environment:
@@ -209,6 +225,7 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.12-alpine
+    profiles: [full]
     restart: unless-stopped
     user: "101:101"
     environment:
@@ -227,6 +244,7 @@ services:
 
   minio:
     image: cgr.dev/chainguard/minio
+    profiles: [full]
     restart: unless-stopped
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -243,6 +261,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    profiles: [full]
     restart: unless-stopped
     command: --requirepass ${REDIS_AUTH} --maxmemory-policy noeviction
     volumes:
@@ -257,27 +276,63 @@ services:
 
   prometheus:
     image: prom/prometheus:v3.5.0
+    profiles: [full]
     restart: unless-stopped
     command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=15d"]
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # The directory, not the file: a replaced file stays invisible to a file mount.
+      - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
 
   grafana:
     image: grafana/grafana:12.2.0
+    profiles: [full]
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
       GF_PLUGINS_PREINSTALL: grafana-clickhouse-datasource
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/services.json
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
       - clickhouse
+
+  # Host metrics for Prometheus: CPU, memory, disk, network of the server.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    profiles: [full]
+    restart: unless-stopped
+    command: ["--path.rootfs=/host"]
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+
+  # Per-container CPU, memory and network for Prometheus, labelled with the
+  # compose service name.
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    profiles: [full]
+    restart: unless-stopped
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=15s
+      - --store_container_labels=false
+      - --whitelisted_container_labels=com.docker.compose.service
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
 
 volumes:
   postgres_data:

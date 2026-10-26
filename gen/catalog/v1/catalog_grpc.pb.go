@@ -21,16 +21,27 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	CatalogService_SearchDestinations_FullMethodName = "/catalog.v1.CatalogService/SearchDestinations"
 	CatalogService_GetWeather_FullMethodName         = "/catalog.v1.CatalogService/GetWeather"
+	CatalogService_GetVisaRequirement_FullMethodName = "/catalog.v1.CatalogService/GetVisaRequirement"
+	CatalogService_ListCountries_FullMethodName      = "/catalog.v1.CatalogService/ListCountries"
+	CatalogService_SearchPlaces_FullMethodName       = "/catalog.v1.CatalogService/SearchPlaces"
 )
 
 // CatalogServiceClient is the client API for CatalogService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// CatalogService suggests destinations and tells the weather there.
+// CatalogService suggests destinations, tells the weather there and answers
+// reference questions: visa requirements, countries and places.
 type CatalogServiceClient interface {
 	SearchDestinations(ctx context.Context, in *SearchDestinationsRequest, opts ...grpc.CallOption) (*SearchDestinationsResponse, error)
 	GetWeather(ctx context.Context, in *GetWeatherRequest, opts ...grpc.CallOption) (*Weather, error)
+	// GetVisaRequirement tells whether a holder of the citizenship passport needs
+	// a visa for the country. Unknown codes are INVALID_ARGUMENT, a pair missing
+	// from the data is NOT_FOUND.
+	GetVisaRequirement(ctx context.Context, in *GetVisaRequirementRequest, opts ...grpc.CallOption) (*VisaRequirement, error)
+	ListCountries(ctx context.Context, in *ListCountriesRequest, opts ...grpc.CallOption) (*ListCountriesResponse, error)
+	// SearchPlaces suggests places by name prefix, e.g. the departure city.
+	SearchPlaces(ctx context.Context, in *SearchPlacesRequest, opts ...grpc.CallOption) (*SearchPlacesResponse, error)
 }
 
 type catalogServiceClient struct {
@@ -61,14 +72,52 @@ func (c *catalogServiceClient) GetWeather(ctx context.Context, in *GetWeatherReq
 	return out, nil
 }
 
+func (c *catalogServiceClient) GetVisaRequirement(ctx context.Context, in *GetVisaRequirementRequest, opts ...grpc.CallOption) (*VisaRequirement, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(VisaRequirement)
+	err := c.cc.Invoke(ctx, CatalogService_GetVisaRequirement_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *catalogServiceClient) ListCountries(ctx context.Context, in *ListCountriesRequest, opts ...grpc.CallOption) (*ListCountriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListCountriesResponse)
+	err := c.cc.Invoke(ctx, CatalogService_ListCountries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *catalogServiceClient) SearchPlaces(ctx context.Context, in *SearchPlacesRequest, opts ...grpc.CallOption) (*SearchPlacesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SearchPlacesResponse)
+	err := c.cc.Invoke(ctx, CatalogService_SearchPlaces_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CatalogServiceServer is the server API for CatalogService service.
 // All implementations must embed UnimplementedCatalogServiceServer
 // for forward compatibility.
 //
-// CatalogService suggests destinations and tells the weather there.
+// CatalogService suggests destinations, tells the weather there and answers
+// reference questions: visa requirements, countries and places.
 type CatalogServiceServer interface {
 	SearchDestinations(context.Context, *SearchDestinationsRequest) (*SearchDestinationsResponse, error)
 	GetWeather(context.Context, *GetWeatherRequest) (*Weather, error)
+	// GetVisaRequirement tells whether a holder of the citizenship passport needs
+	// a visa for the country. Unknown codes are INVALID_ARGUMENT, a pair missing
+	// from the data is NOT_FOUND.
+	GetVisaRequirement(context.Context, *GetVisaRequirementRequest) (*VisaRequirement, error)
+	ListCountries(context.Context, *ListCountriesRequest) (*ListCountriesResponse, error)
+	// SearchPlaces suggests places by name prefix, e.g. the departure city.
+	SearchPlaces(context.Context, *SearchPlacesRequest) (*SearchPlacesResponse, error)
 	mustEmbedUnimplementedCatalogServiceServer()
 }
 
@@ -84,6 +133,15 @@ func (UnimplementedCatalogServiceServer) SearchDestinations(context.Context, *Se
 }
 func (UnimplementedCatalogServiceServer) GetWeather(context.Context, *GetWeatherRequest) (*Weather, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetWeather not implemented")
+}
+func (UnimplementedCatalogServiceServer) GetVisaRequirement(context.Context, *GetVisaRequirementRequest) (*VisaRequirement, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetVisaRequirement not implemented")
+}
+func (UnimplementedCatalogServiceServer) ListCountries(context.Context, *ListCountriesRequest) (*ListCountriesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListCountries not implemented")
+}
+func (UnimplementedCatalogServiceServer) SearchPlaces(context.Context, *SearchPlacesRequest) (*SearchPlacesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SearchPlaces not implemented")
 }
 func (UnimplementedCatalogServiceServer) mustEmbedUnimplementedCatalogServiceServer() {}
 func (UnimplementedCatalogServiceServer) testEmbeddedByValue()                        {}
@@ -142,6 +200,60 @@ func _CatalogService_GetWeather_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CatalogService_GetVisaRequirement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetVisaRequirementRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CatalogServiceServer).GetVisaRequirement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CatalogService_GetVisaRequirement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CatalogServiceServer).GetVisaRequirement(ctx, req.(*GetVisaRequirementRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CatalogService_ListCountries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListCountriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CatalogServiceServer).ListCountries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CatalogService_ListCountries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CatalogServiceServer).ListCountries(ctx, req.(*ListCountriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CatalogService_SearchPlaces_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SearchPlacesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CatalogServiceServer).SearchPlaces(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CatalogService_SearchPlaces_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CatalogServiceServer).SearchPlaces(ctx, req.(*SearchPlacesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CatalogService_ServiceDesc is the grpc.ServiceDesc for CatalogService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -156,6 +268,18 @@ var CatalogService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWeather",
 			Handler:    _CatalogService_GetWeather_Handler,
+		},
+		{
+			MethodName: "GetVisaRequirement",
+			Handler:    _CatalogService_GetVisaRequirement_Handler,
+		},
+		{
+			MethodName: "ListCountries",
+			Handler:    _CatalogService_ListCountries_Handler,
+		},
+		{
+			MethodName: "SearchPlaces",
+			Handler:    _CatalogService_SearchPlaces_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

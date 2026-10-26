@@ -1,0 +1,55 @@
+# Source registry of the backend test snapshot (CFC-3). The data role keeps the real one in data/sources.yaml.
+- provider: passport-index-data
+  title: Passport Index Data
+  url: https://github.com/imorte/passport-index-data
+  license: MIT
+  kind: real
+  status: used
+  used_for: [визовый режим]
+  fetched_at: 2026-10-25T21:00:00Z
+- provider: open-meteo
+  title: Open-Meteo
+  url: https://open-meteo.com
+  license: CC-BY-4.0
+  kind: real
+  status: used
+  used_for: [координаты городов, климат по месяцам, прогноз погоды]
+  fetched_at: 2026-10-25T21:00:00Z
+- provider: ourairports
+  title: OurAirports
+  url: https://ourairports.com/data/
+  license: Public Domain
+  kind: real
+  status: used
+  used_for: [аэропорты]
+  fetched_at: 2026-10-25T21:00:00Z
+- provider: osm
+  title: OpenStreetMap
+  url: https://www.openstreetmap.org/copyright
+  license: ODbL-1.0
+  kind: real
+  status: used
+  used_for: [отели, расположение]
+  fetched_at: 2026-10-25T21:00:00Z
+- provider: cbr
+  title: Банк России, курсы валют
+  url: https://www.cbr.ru/scripts/XML_daily.asp
+  license: ""
+  kind: real
+  status: used
+  used_for: [курсы валют]
+  fetched_at: 2026-10-25T21:00:00Z
+- provider: testdata
+  title: Тестовые значения бэкенда
+  url: ""
+  license: ""
+  kind: synthetic
+  status: used
+  used_for: [тарифы, расписания поездов, теги направлений]
+- provider: synthetic
+  title: Синтетические данные
+  url: ""
+  license: ""
+  kind: synthetic
+  status: used
+  used_for: [цены, наличие, условия отмены]

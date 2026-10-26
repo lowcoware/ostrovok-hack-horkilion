@@ -1,6 +1,13 @@
+# Context of the Go service images (Dockerfile at the root). web/ and the docs
+# site have their own context and ignore files.
 .git
 .github
-docs
+**/node_modules
 deploy
+docs
+docs-site
 web
 *.md
+# The data pipeline stays out, its built snapshot stays in for the image.
+data
+!data/snapshot

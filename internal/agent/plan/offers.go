@@ -90,16 +90,42 @@ type Transfer struct {
 }
 
 type Destination struct {
-	ID                string   `json:"id"`
-	Name              string   `json:"name"`
-	Country           string   `json:"country"`
-	CountryCode       string   `json:"country_code"`
-	Place             Place    `json:"place"`
-	Tags              []string `json:"tags"`
-	EstimatedTotalRub int64    `json:"estimated_total_rub"`
-	TravelHours       float64  `json:"travel_hours"`
-	Weather           *Weather `json:"weather,omitempty"`
-	Sources           []Source `json:"sources"`
+	ID                string          `json:"id"`
+	Name              string          `json:"name"`
+	Country           string          `json:"country"`
+	CountryCode       string          `json:"country_code"`
+	Place             Place           `json:"place"`
+	Tags              []string        `json:"tags"`
+	EstimatedTotalRub int64           `json:"estimated_total_rub"`
+	TravelHours       float64         `json:"travel_hours"`
+	Weather           *Weather        `json:"weather,omitempty"`
+	Visa              VisaRequirement `json:"visa"`
+	Sources           []Source        `json:"sources"`
+}
+
+// Visa statuses, see VisaStatus in api/openapi.yaml.
+const (
+	VisaHome        = "home"
+	VisaFree        = "visa_free"
+	VisaOnArrival   = "visa_on_arrival"
+	VisaETA         = "eta"
+	VisaElectronic  = "e_visa"
+	VisaRequired    = "visa_required"
+	VisaNoAdmission = "no_admission"
+)
+
+type VisaRequirement struct {
+	Citizenship string   `json:"citizenship"`
+	CountryCode string   `json:"country_code"`
+	Status      string   `json:"status"`
+	MaxStayDays int32    `json:"max_stay_days,omitempty"`
+	Sources     []Source `json:"sources"`
+}
+
+// VisaFree reports whether the status lets the traveller in without arranging
+// anything before the trip.
+func (v VisaRequirement) VisaFree() bool {
+	return v.Status == VisaHome || v.Status == VisaFree || v.Status == VisaOnArrival
 }
 
 type Weather struct {
@@ -177,6 +203,17 @@ func TransferFromProto(t *transferv1.Transfer) *Transfer {
 	}
 }
 
+func VisaFromProto(v *catalogv1.VisaRequirement) *VisaRequirement {
+	if v == nil {
+		return nil
+	}
+	return &VisaRequirement{
+		Citizenship: v.GetCitizenship(), CountryCode: v.GetCountryCode(),
+		Status: enumName(v.GetStatus().String(), "STATUS_"), MaxStayDays: v.GetMaxStayDays(),
+		Sources: SourcesFromProto(v.GetSources()),
+	}
+}
+
 func WeatherFromProto(w *catalogv1.Weather) *Weather {
 	return &Weather{
 		Place: PlaceFromProto(w.GetPlace()), Date: w.GetDate(), TempMaxC: w.GetTempMaxC(), TempMinC: w.GetTempMinC(),
@@ -189,6 +226,18 @@ func WeatherFromProto(w *catalogv1.Weather) *Weather {
 func StayOption(h *lodgingv1.Hotel) Option {
 	hotel := HotelFromProto(h)
 	return Option{ID: hotel.ID, Kind: KindStay, PriceRub: hotel.TotalPriceRub, Stay: hotel, Flags: []string{}, Sources: hotel.Sources}
+}
+
+// JourneyOption wraps a journey offer into an outbound or return option.
+func JourneyOption(j *transportv1.Journey) Option {
+	journey := JourneyFromProto(j)
+	return Option{ID: journey.ID, Kind: KindJourney, PriceRub: journey.PriceRub, Journey: journey, Flags: []string{}, Sources: journey.Sources}
+}
+
+// TransferOption wraps a transfer offer into a transfer option.
+func TransferOption(t *transferv1.Transfer) Option {
+	transfer := TransferFromProto(t)
+	return Option{ID: transfer.ID, Kind: KindTransfer, PriceRub: transfer.PriceRub, Transfer: transfer, Flags: []string{}, Sources: transfer.Sources}
 }
 
 // TravelersProto returns the party of the plan in supplier terms.

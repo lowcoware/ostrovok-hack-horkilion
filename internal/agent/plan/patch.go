@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -15,6 +16,10 @@ const (
 	DefaultNights   = 3
 	DefaultAdults   = 2
 	DefaultChildAge = 7
+	// DefaultCitizenship is assumed until the traveller names another passport.
+	DefaultCitizenship = "RU"
+	// DefaultOrigin is assumed until the traveller names the departure city.
+	DefaultOrigin = "Москва"
 )
 
 // Patch changes the plan. Text messages (through the router) and manual edits
@@ -23,6 +28,7 @@ const (
 type Patch struct {
 	Origin      *string           `json:"origin,omitempty"`
 	Destination *string           `json:"destination,omitempty"`
+	Citizenship *string           `json:"citizenship,omitempty"`
 	Dates       *DatesPatch       `json:"dates,omitempty"`
 	Adults      *int32            `json:"adults,omitempty"`
 	ChildAges   *[]int32          `json:"child_ages,omitempty"`
@@ -34,7 +40,17 @@ type Patch struct {
 	// ChildAgesAssumed means the router knew the number of children but not
 	// their ages; Apply records the ages as an assumption.
 	ChildAgesAssumed bool `json:"-"`
+	// Assumed maps a field the router filled by interpretation, not from an
+	// explicit value («в ноябре», «без долгих перелётов»), to the reason; Apply
+	// records it as an assumption when the value is applied.
+	Assumed map[string]string `json:"-"`
 }
+
+// Fields the router may fill by interpretation.
+const (
+	FieldDepart         = "dates.depart"
+	FieldMaxTravelHours = "preferences.max_travel_hours"
+)
 
 type DatesPatch struct {
 	Depart   *string `json:"depart,omitempty"`
@@ -49,6 +65,7 @@ type PreferencesPatch struct {
 	TransportModes   *[]string `json:"transport_modes,omitempty"`
 	MaxTravelHours   *float64  `json:"max_travel_hours,omitempty"`
 	Moods            *[]string `json:"moods,omitempty"`
+	VisaFreeOnly     *bool     `json:"visa_free_only,omitempty"`
 }
 
 type Selection struct {
@@ -57,13 +74,14 @@ type Selection struct {
 }
 
 var (
+	countryCode    = regexp.MustCompile(`^[A-Z]{2}$`)
 	meals          = []string{"room_only", "breakfast", "half_board", "all_inclusive"}
 	transportModes = []string{"air", "rail"}
 )
 
 // Empty reports whether the patch changes nothing.
 func (p Patch) Empty() bool {
-	return p.Origin == nil && p.Destination == nil && p.Dates == nil && p.Adults == nil && p.ChildAges == nil &&
+	return p.Origin == nil && p.Destination == nil && p.Citizenship == nil && p.Dates == nil && p.Adults == nil && p.ChildAges == nil &&
 		p.Pets == nil && p.Budget == nil && p.Preferences == nil && p.Select == nil
 }
 
@@ -78,6 +96,9 @@ func (p Patch) Validate() error {
 		if s != nil && (strings.TrimSpace(*s) == "" || utf8.RuneCountInString(*s) > 100) {
 			return fmt.Errorf("%s must be 1 to 100 characters", name)
 		}
+	}
+	if p.Citizenship != nil && !countryCode.MatchString(*p.Citizenship) {
+		return errors.New("citizenship must be an ISO 3166-1 alpha-2 code, e.g. RU")
 	}
 	if d := p.Dates; d != nil {
 		for name, s := range map[string]*string{"dates.depart": d.Depart, "dates.return": d.Return} {
@@ -146,12 +167,22 @@ func (p Patch) Validate() error {
 //	meal, cancellation -> stay
 //	transport modes    -> outbound, return
 //	budget             -> nothing: totals and over_budget flags are recomputed
+//	citizenship        -> destination options, visa and visa checks; hotels and transport stay
+//	visa_free_only     -> destination options
+//	nights             -> the visa-free stay check is recomputed (spec 0002)
+//	select outbound    -> transfer_arrival
+//	select stay        -> transfer_arrival, transfer_departure
+//	select return      -> transfer_departure
 var (
 	allComponents   = ComponentNames
 	transportStale  = []string{Outbound, Return, TransferArrival, TransferDeparture}
 	petsStale       = []string{Stay, TransferArrival, TransferDeparture}
 	journeyStale    = []string{Outbound, Return}
 	preferenceStale = []string{Stay}
+	// Transfers run between the chosen journeys and the chosen hotel.
+	selectStale = map[string][]string{
+		Outbound: {TransferArrival}, Stay: {TransferArrival, TransferDeparture}, Return: {TransferDeparture},
+	}
 )
 
 // Apply merges a patch into the plan and invalidates exactly what the change
@@ -167,7 +198,15 @@ func (p *TripPlan) Apply(patch Patch, today time.Time) []string {
 		c.Destination = strings.TrimSpace(*v)
 		p.Components = Components{}
 		p.Weather = nil
+		p.clearVisa()
 		p.normalize()
+	}
+	if v := patch.Citizenship; v != nil && countryCode.MatchString(*v) && *v != c.Citizenship {
+		c.Citizenship = *v
+		p.dropAssumption("citizenship")
+		p.DestinationOptions = []DestinationOption{}
+		p.clearVisa()
+		changes = append(changes, "гражданство изменилось: визы и варианты направлений пересчитываются")
 	}
 	if v := patch.Origin; v != nil && strings.TrimSpace(*v) != "" && *v != c.Origin {
 		c.Origin = strings.TrimSpace(*v)
@@ -209,6 +248,18 @@ func (p *TripPlan) Apply(patch Patch, today time.Time) []string {
 	}
 	if s := patch.Select; s != nil {
 		changes = append(changes, p.selectOption(*s)...)
+	}
+	for field, reason := range patch.Assumed {
+		switch field {
+		case FieldDepart:
+			if d := patch.Dates; d != nil && d.Depart != nil && c.Dates.Depart == *d.Depart {
+				p.addAssumption(field, c.Dates.Depart, reason)
+			}
+		case FieldMaxTravelHours:
+			if pr := patch.Preferences; pr != nil && pr.MaxTravelHours != nil && c.Preferences.MaxTravelHours == *pr.MaxTravelHours {
+				p.addAssumption(field, fmt.Sprint(c.Preferences.MaxTravelHours), reason)
+			}
+		}
 	}
 	p.recompute()
 	return changes
@@ -292,10 +343,20 @@ func (p *TripPlan) applyPreferences(pr PreferencesPatch) []string {
 	}
 	if v := pr.MaxTravelHours; v != nil && *v >= 0 && *v != prefs.MaxTravelHours {
 		prefs.MaxTravelHours = *v
+		p.dropAssumption(FieldMaxTravelHours)
 		changes = append(changes, p.markStale("допустимое время в пути изменилось", journeyStale)...)
 	}
 	if v := pr.Moods; v != nil {
 		prefs.Moods = slices.Clone(*v)
+	}
+	if v := pr.VisaFreeOnly; v != nil && *v != prefs.VisaFreeOnly {
+		prefs.VisaFreeOnly = *v
+		p.DestinationOptions = []DestinationOption{}
+		if *v {
+			changes = append(changes, "подбор только по странам без визы")
+		} else {
+			changes = append(changes, "в подбор добавлены страны с визой")
+		}
 	}
 	return changes
 }
@@ -307,9 +368,13 @@ func (p *TripPlan) selectOption(s Selection) []string {
 	}
 	for _, o := range comp.Options {
 		if o.ID == s.OptionID && !o.hasFlag(FlagSelectedUnavailable) {
+			if comp.SelectedID == o.ID {
+				return nil
+			}
 			comp.SelectedID = o.ID
 			p.dropConflicts(s.Component)
-			return []string{fmt.Sprintf("выбран вариант %s", OptionTitle(o))}
+			changes := []string{fmt.Sprintf("выбран вариант %s", OptionTitle(o))}
+			return append(changes, p.markStale("подбираю трансфер под выбор", selectStale[s.Component])...)
 		}
 	}
 	return []string{"выбранного варианта нет среди доступных, выбор не изменился"}
@@ -355,6 +420,14 @@ func (p *TripPlan) SearchGate() bool {
 // records each one as an assumption.
 func (p *TripPlan) FillDefaults(today time.Time) {
 	c := &p.Constraints
+	if c.Origin == "" {
+		c.Origin = DefaultOrigin
+		p.addAssumption("origin", DefaultOrigin, "город отправления не назван")
+	}
+	if c.Citizenship == "" {
+		c.Citizenship = DefaultCitizenship
+		p.addAssumption("citizenship", DefaultCitizenship, "гражданство не названо")
+	}
 	if c.Dates.Depart == "" {
 		c.Dates.Depart = today.AddDate(0, 0, DefaultLeadDays).Format(time.DateOnly)
 		p.addAssumption("dates.depart", c.Dates.Depart, fmt.Sprintf("даты не названы, взяли отъезд через %d дней", DefaultLeadDays))
@@ -395,6 +468,8 @@ func (p *TripPlan) SetOptions(component string, options []Option) {
 // NextStage moves the plan to the earliest stage whose gate is not passed.
 func (p *TripPlan) NextStage() {
 	switch {
+	case !p.SearchGate() && len(p.DestinationOptions) > 0:
+		p.Stage = StageInspire
 	case !p.SearchGate():
 		p.Stage = StageClarify
 	case len(p.Components.Stay.Options) == 0:
@@ -406,23 +481,38 @@ func (p *TripPlan) NextStage() {
 	}
 }
 
-// recompute sums the selected options and flags options that would break the
-// budget if chosen instead of the current selection of their component.
+// InCart is the option of a component that checkout buys: the hotel the user
+// selected, and for the journeys and transfers the option the trip is
+// assembled from (Component.Effective). nil means nothing to buy.
+func (p *TripPlan) InCart(component string) *Option {
+	comp := p.Components.Get(component)
+	if component == Stay {
+		if sel := comp.Selected(); sel != nil && !sel.hasFlag(FlagSelectedUnavailable) {
+			return sel
+		}
+		return nil
+	}
+	return comp.Effective()
+}
+
+// recompute sums the cart and flags options that would break the budget if
+// chosen instead of the current cart option of their component.
 func (p *TripPlan) recompute() {
 	var total int64
 	for _, name := range ComponentNames {
-		if sel := p.Components.Get(name).Selected(); sel != nil && !sel.hasFlag(FlagSelectedUnavailable) {
-			total += sel.PriceRub
+		if o := p.InCart(name); o != nil {
+			total += o.PriceRub
 		}
 	}
 	p.TotalRub = total
+	p.updateVisaChecks()
 	budget := p.Constraints.Budget
 	p.OverBudget = budget != nil && total > budget.AmountRub
 	for _, name := range ComponentNames {
 		comp := p.Components.Get(name)
 		others := total
-		if sel := comp.Selected(); sel != nil && !sel.hasFlag(FlagSelectedUnavailable) {
-			others -= sel.PriceRub
+		if o := p.InCart(name); o != nil {
+			others -= o.PriceRub
 		}
 		for i := range comp.Options {
 			o := &comp.Options[i]
@@ -456,4 +546,76 @@ func OptionTitle(o Option) string {
 		return "Трансфер " + o.Transfer.From.Name + " → " + o.Transfer.To.Name
 	}
 	return o.ID
+}
+
+// Visa check kinds, see Check.kind in api/openapi.yaml.
+const (
+	CheckVisa         = "visa"
+	CheckVisaFreeStay = "stay_within_visa_free_days"
+)
+
+// SetVisa stores the visa requirement of the chosen destination. nil means it
+// could not be checked (catalog unavailable or the pair is not in the data):
+// the plan then carries a warning instead of silently passing.
+func (p *TripPlan) SetVisa(v *VisaRequirement) {
+	p.Visa = v
+	p.dropChecks(CheckVisa, CheckVisaFreeStay)
+	if v == nil {
+		p.Checks = append(p.Checks, Check{
+			Kind: CheckVisa, Status: "warn", Message: "Не удалось проверить визовый режим.", Components: []string{},
+		})
+		return
+	}
+	p.updateVisaChecks()
+}
+
+func (p *TripPlan) clearVisa() {
+	p.Visa = nil
+	p.dropChecks(CheckVisa, CheckVisaFreeStay)
+}
+
+var visaMessages = map[string]string{
+	VisaHome:        "Своя страна, виза не нужна.",
+	VisaFree:        "Виза не нужна.",
+	VisaOnArrival:   "Виза оформляется по прилёту.",
+	VisaETA:         "Нужно электронное разрешение на въезд, оформляется онлайн до поездки.",
+	VisaElectronic:  "Нужна электронная виза, оформляется онлайн до поездки.",
+	VisaRequired:    "Нужна виза, оформляется в консульстве до поездки.",
+	VisaNoAdmission: "Въезд для граждан этой страны закрыт.",
+}
+
+// updateVisaChecks derives the visa checks from p.Visa and the trip length
+// (spec 0002, runtime behaviour step 6). Without p.Visa existing checks stay.
+func (p *TripPlan) updateVisaChecks() {
+	v := p.Visa
+	if v == nil {
+		return
+	}
+	p.dropChecks(CheckVisa, CheckVisaFreeStay)
+	status := "ok"
+	switch v.Status {
+	case VisaETA, VisaElectronic:
+		status = "warn"
+	case VisaRequired, VisaNoAdmission:
+		status = "fail"
+	}
+	msg := visaMessages[v.Status]
+	if v.VisaFree() && v.MaxStayDays > 0 && v.Status != VisaHome {
+		msg = fmt.Sprintf("%s Без визы можно находиться до %d дней.", msg, v.MaxStayDays)
+	}
+	p.Checks = append(p.Checks, Check{Kind: CheckVisa, Status: status, Message: msg, Components: []string{}})
+
+	if !v.VisaFree() || v.Status == VisaHome {
+		return
+	}
+	stay := Check{Kind: CheckVisaFreeStay, Status: "ok", Message: "Поездка укладывается в безвизовый срок.", Components: []string{Stay}}
+	if nights := p.Constraints.Dates.Nights; v.MaxStayDays > 0 && nights > v.MaxStayDays {
+		stay.Status = "fail"
+		stay.Message = fmt.Sprintf("Поездка %d ночей длиннее безвизового срока %d дней.", nights, v.MaxStayDays)
+	}
+	p.Checks = append(p.Checks, stay)
+}
+
+func (p *TripPlan) dropChecks(kinds ...string) {
+	p.Checks = slices.DeleteFunc(p.Checks, func(c Check) bool { return slices.Contains(kinds, c.Kind) })
 }

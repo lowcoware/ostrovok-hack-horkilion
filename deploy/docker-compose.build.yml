@@ -19,3 +19,5 @@ services:
     build: { <<: *go, args: { SERVICE: notifier } }
   web:
     build: { context: ../web }
+  docs:
+    build: { context: .., dockerfile: docs-site/Dockerfile }

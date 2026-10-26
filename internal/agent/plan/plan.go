@@ -55,10 +55,12 @@ type TripPlan struct {
 	DestinationOptions []DestinationOption `json:"destination_options"`
 	Components         Components          `json:"components"`
 	Weather            *Weather            `json:"weather,omitempty"`
-	Checks             []Check             `json:"checks"`
-	Conflicts          []Conflict          `json:"conflicts"`
-	TotalRub           int64               `json:"total_rub"`
-	OverBudget         bool                `json:"over_budget"`
+	// Visa is the visa requirement for the chosen destination's country.
+	Visa       *VisaRequirement `json:"visa,omitempty"`
+	Checks     []Check          `json:"checks"`
+	Conflicts  []Conflict       `json:"conflicts"`
+	TotalRub   int64            `json:"total_rub"`
+	OverBudget bool             `json:"over_budget"`
 
 	// stale marks components whose options must be re-checked with the
 	// supplier in this turn. It lives only within a turn and is not stored.
@@ -66,8 +68,10 @@ type TripPlan struct {
 }
 
 type Constraints struct {
-	Origin      string      `json:"origin,omitempty"`
-	Destination string      `json:"destination,omitempty"`
+	Origin      string `json:"origin,omitempty"`
+	Destination string `json:"destination,omitempty"`
+	// Citizenship of the travellers, ISO 3166-1 alpha-2. Visas depend on it.
+	Citizenship string      `json:"citizenship,omitempty"`
 	Dates       Dates       `json:"dates"`
 	Adults      int32       `json:"adults,omitempty"`
 	ChildAges   []int32     `json:"child_ages"`
@@ -96,6 +100,8 @@ type Preferences struct {
 	TransportModes   []string `json:"transport_modes"`
 	MaxTravelHours   float64  `json:"max_travel_hours,omitempty"`
 	Moods            []string `json:"moods"`
+	// VisaFreeOnly limits destination search to countries entered without a visa.
+	VisaFreeOnly bool `json:"visa_free_only"`
 }
 
 // Assumption is something the agent decided on its own; the user sees and can correct it.
@@ -264,6 +270,7 @@ type Conflict struct {
 // New returns an empty plan for a new session.
 func New(sessionID string) TripPlan {
 	p := TripPlan{SessionID: sessionID, Stage: StageClarify}
+	p.Constraints.Preferences.VisaFreeOnly = true
 	p.normalize()
 	return p
 }

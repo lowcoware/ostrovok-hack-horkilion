@@ -12,6 +12,9 @@ on:
       web:
         description: Frontend changed, the web image needs a rebuild
         value: ${{ jobs.changes.outputs.web }}
+      docs:
+        description: Documentation changed, the docs image needs a rebuild
+        value: ${{ jobs.changes.outputs.docs }}
 
 permissions:
   contents: read
@@ -24,6 +27,7 @@ jobs:
     outputs:
       backend: ${{ steps.diff.outputs.backend }}
       web: ${{ steps.diff.outputs.web }}
+      docs: ${{ steps.diff.outputs.docs }}
       deploy: ${{ steps.diff.outputs.deploy }}
       data: ${{ steps.diff.outputs.data }}
     steps:
@@ -46,6 +50,7 @@ jobs:
             echo "backend=$(changed '^(api|cmd|config|internal|gen|migrations|proto|scripts)/|^go\.(mod|sum)$|^Dockerfile$|^\.dockerignore$')"
             echo "web=$(changed '^(api|web)/|^redocly\.yaml$')"
             echo "deploy=$(changed '^deploy/')"
+            echo "docs=$(changed '^(docs|docs-site)/')"
             echo "data=$(changed '^data/')"
           } | tee -a "$GITHUB_OUTPUT"
 
@@ -96,6 +101,23 @@ jobs:
           npm run gen:api
           git diff --exit-code src/api/schema.ts || { echo "::error::web/src/api/schema.ts is stale: run npm run gen:api and commit"; exit 1; }
       - run: npm test
+      - run: npm run build
+
+  docs:
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs-site
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs-site/package-lock.json
+      - run: npm ci
       - run: npm run build
 
   # Snapshot format from spec 0003, CFC-3: schemas, duplicate keys, sources, manifest.
