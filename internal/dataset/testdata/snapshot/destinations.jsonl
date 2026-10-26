@@ -1,9 +1,9 @@
-{"airports": ["AER"], "city_id": "sochi", "country_code": "RU", "description": "", "id": "sochi", "name": "Сочи", "sources": ["testdata", "open-meteo"], "stations": ["sochi"], "tags": ["sea", "warm", "mountains", "kids", "nature"]}
-{"airports": ["KZN"], "city_id": "kazan", "country_code": "RU", "description": "", "id": "kazan", "name": "Казань", "sources": ["testdata", "open-meteo"], "stations": ["kazan"], "tags": ["city"]}
-{"airports": ["KGD"], "city_id": "kaliningrad", "country_code": "RU", "description": "", "id": "kaliningrad", "name": "Калининград", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["sea", "city", "nature"]}
-{"airports": ["AYT"], "city_id": "antalya", "country_code": "TR", "description": "", "id": "antalya", "name": "Анталия", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["sea", "warm", "kids"]}
-{"airports": ["DXB"], "city_id": "dubai", "country_code": "AE", "description": "", "id": "dubai", "name": "Дубай", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["sea", "warm", "city", "kids"]}
-{"airports": ["HRG"], "city_id": "hurghada", "country_code": "EG", "description": "", "id": "hurghada", "name": "Хургада", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["sea", "warm", "kids"]}
-{"airports": ["PEK"], "city_id": "beijing", "country_code": "CN", "description": "", "id": "beijing", "name": "Пекин", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["city"]}
-{"airports": ["CDG"], "city_id": "paris", "country_code": "FR", "description": "", "id": "paris", "name": "Париж", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["city"]}
-{"airports": ["TBS"], "city_id": "tbilisi", "country_code": "GE", "description": "", "id": "tbilisi", "name": "Тбилиси", "sources": ["testdata", "open-meteo"], "stations": [], "tags": ["city", "mountains", "nature"]}
+{"airports": ["AER"], "city_id": "sochi", "country_code": "RU", "description": "", "id": "sochi", "name": "Сочи", "sources": ["geonames", "open-meteo"], "stations": ["sochi"], "tags": ["sea", "warm", "mountains", "kids", "nature"]}
+{"airports": ["KZN"], "city_id": "kazan", "country_code": "RU", "description": "", "id": "kazan", "name": "Казань", "sources": ["geonames", "open-meteo"], "stations": ["kazan"], "tags": ["city"]}
+{"airports": ["KGD"], "city_id": "kaliningrad", "country_code": "RU", "description": "", "id": "kaliningrad", "name": "Калининград", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["sea", "city", "nature"]}
+{"airports": ["AYT"], "city_id": "antalya", "country_code": "TR", "description": "", "id": "antalya", "name": "Анталия", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["sea", "warm", "kids"]}
+{"airports": ["DXB"], "city_id": "dubai", "country_code": "AE", "description": "", "id": "dubai", "name": "Дубай", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["sea", "warm", "city", "kids"]}
+{"airports": ["HRG"], "city_id": "hurghada", "country_code": "EG", "description": "", "id": "hurghada", "name": "Хургада", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["sea", "warm", "kids"]}
+{"airports": ["PEK"], "city_id": "beijing", "country_code": "CN", "description": "", "id": "beijing", "name": "Пекин", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["city"]}
+{"airports": ["CDG"], "city_id": "paris", "country_code": "FR", "description": "", "id": "paris", "name": "Париж", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["city"]}
+{"airports": ["TBS"], "city_id": "tbilisi", "country_code": "GE", "description": "", "id": "tbilisi", "name": "Тбилиси", "sources": ["geonames", "open-meteo"], "stations": [], "tags": ["city", "mountains", "nature"]}
